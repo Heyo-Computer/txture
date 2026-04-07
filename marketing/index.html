@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>papr.fyi — Your AI-powered task agent</title>
+  <meta name="description" content="papr is a desktop app that pairs an interactive task manager with a local AI agent running in its own sandbox. Delegate tasks, review artifacts, and stay in control.">
+  <meta property="og:title" content="papr.fyi — Your AI-powered task agent">
+  <meta property="og:description" content="A desktop app that pairs a task manager with a local AI agent. Delegate tasks, review artifacts, stay in control.">
+  <meta property="og:image" content="assets/icon-512.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="assets/icon-128.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-brand">
+        <img src="assets/icon-128.png" alt="papr logo" width="28" height="28">
+        papr.fyi
+      </a>
+      <button class="nav-hamburger" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <line x1="3" y1="5" x2="17" y2="5"/>
+          <line x1="3" y1="10" x2="17" y2="10"/>
+          <line x1="3" y1="15" x2="17" y2="15"/>
+        </svg>
+      </button>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How it works</a></li>
+        <li><a href="#cta" class="btn btn-primary btn-sm">Download</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero section" id="hero">
+    <div class="container">
+      <h1 class="hero-headline">Your tasks. An AI agent.<br>Real work done.</h1>
+      <p class="hero-subheadline">papr is a desktop app that pairs an interactive task manager with a local AI agent running in its own sandbox. Delegate tasks, review artifacts, and stay in control.</p>
+      <div class="hero-buttons">
+        <a href="#cta" class="btn btn-primary">Download for free</a>
+        <a href="#how-it-works" class="btn btn-ghost">See how it works</a>
+      </div>
+
+      <!-- CSS App Mockup -->
+      <div class="mockup reveal">
+        <div class="mockup-titlebar">
+          <span class="mockup-dot"></span>
+          <span class="mockup-dot"></span>
+          <span class="mockup-dot"></span>
+          <span class="mockup-titlebar-text">papr</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-tasks">
+            <div class="mockup-day">Sat</div>
+            <div class="mockup-day today">Sun &middot; Today</div>
+            <div class="mockup-task">
+              <span class="mockup-checkbox checked"></span>
+              <span class="done">Research competitor pricing</span>
+            </div>
+            <div class="mockup-task">
+              <span class="mockup-checkbox"></span>
+              <span>Draft landing page copy</span>
+            </div>
+            <div class="mockup-task">
+              <span class="mockup-checkbox"></span>
+              <span>Set up CI pipeline for staging</span>
+            </div>
+          </div>
+          <div class="mockup-chat">
+            <div class="mockup-bubble user">Set up the CI pipeline using GitHub Actions</div>
+            <div class="mockup-bubble assistant">Done. I created .github/workflows/staging.yml with build, test, and deploy steps. The artifact is saved.</div>
+            <div class="mockup-input">
+              <span class="mockup-input-text">Ask the agent...</span>
+              <span class="mockup-input-btn">
+                <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6l5-5 5 5"/></svg>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features section" id="features">
+    <div class="container">
+      <h2 class="section-title">Built for people who get things done</h2>
+      <p class="section-subtitle">A task manager that doesn't just organize your work — it does it.</p>
+
+      <div class="features-grid">
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
+          <h3>Daily task board</h3>
+          <p>Organize your work by day with an accordion view spanning the last week. Each task expands into a full markdown spec.</p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+          </div>
+          <h3>AI agent in a sandbox</h3>
+          <p>Your agent runs in an isolated VM with real shell access, file operations, and web search — safely contained.</p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <h3>Chat interface</h3>
+          <p>Talk to your agent naturally. Delegate tasks, ask questions, or have it write code — powered by Claude.</p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </div>
+          <h3>Artifacts panel</h3>
+          <p>The agent saves reusable files — scripts, configs, notes — to a shared artifacts directory you can browse.</p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h3>Local-first</h3>
+          <p>Everything runs on your machine. Your data stays in a local directory, mounted directly into the sandbox.</p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+          </div>
+          <h3>Light & dark themes</h3>
+          <p>Follows your system preference or toggle manually. Clean, minimal interface inspired by Apple's design language.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="section" id="how-it-works">
+    <div class="container">
+      <h2 class="section-title">Three steps to delegation</h2>
+      <p class="section-subtitle">From task to result in minutes, not hours.</p>
+
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-number">1</div>
+          <h3>Add a task</h3>
+          <p>Create a task on today's board. Write a markdown spec with as much or as little detail as you want.</p>
+        </div>
+
+        <div class="step reveal">
+          <div class="step-number">2</div>
+          <h3>Delegate to the agent</h3>
+          <p>Open the chat and tell the agent what to do. It spins up a sandbox VM and gets to work.</p>
+        </div>
+
+        <div class="step reveal">
+          <div class="step-number">3</div>
+          <h3>Review the results</h3>
+          <p>The agent's output appears as artifacts — files, code, research — ready for you to review and use.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta section" id="cta">
+    <div class="container">
+      <h2 class="cta-headline">Ready to try papr?</h2>
+      <p class="cta-sub">Free to use. Bring your own Anthropic API key.</p>
+      <a href="#" class="btn btn-primary">Download now</a>
+      <p class="cta-platforms">Available for macOS, Linux, and Windows</p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span class="footer-brand">papr.fyi &copy; 2026 Heyo</span>
+      <ul class="footer-links">
+        <li><a href="https://github.com">GitHub</a></li>
+        <li><a href="https://heyo.computer">Heyo</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

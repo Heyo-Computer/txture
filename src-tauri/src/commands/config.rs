@@ -1,0 +1,189 @@
+use tauri::State;
+use crate::state::AppState;
+
+fn default_data_dir() -> String {
+    dirs::home_dir()
+        .map(|h| h.join(".todo").to_string_lossy().to_string())
+        .unwrap_or_else(|| "~/.todo".to_string())
+}
+fn default_cloud_url() -> String {
+    "https://server.heyo.computer".to_string()
+}
+fn default_region() -> String {
+    "US".to_string()
+}
+fn default_size_class() -> String {
+    "small".to_string()
+}
+fn default_image() -> String {
+    "ubuntu:24.04".to_string()
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct AgentConfig {
+    pub api_key: String,
+    pub model: String,
+    pub vm_name: String,
+    pub vm_backend: String,
+    #[serde(default = "default_data_dir")]
+    pub data_dir: String,
+    #[serde(default)]
+    pub heyo_api_key: String,
+    #[serde(default = "default_cloud_url")]
+    pub heyo_cloud_url: String,
+    #[serde(default = "default_region")]
+    pub deploy_region: String,
+    #[serde(default = "default_size_class")]
+    pub deploy_size_class: String,
+    #[serde(default = "default_image")]
+    pub deploy_image: String,
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        let backend = if cfg!(target_os = "macos") {
+            "apple_vf"
+        } else {
+            "libvirt"
+        };
+
+        Self {
+            api_key: String::new(),
+            model: "claude-sonnet-4-6".to_string(),
+            vm_name: "todo-agent".to_string(),
+            vm_backend: backend.to_string(),
+            data_dir: default_data_dir(),
+            heyo_api_key: String::new(),
+            heyo_cloud_url: default_cloud_url(),
+            deploy_region: default_region(),
+            deploy_size_class: default_size_class(),
+            deploy_image: default_image(),
+        }
+    }
+}
+
+impl AgentConfig {
+    pub fn default_from_disk(config_dir: &std::path::Path) -> Self {
+        let path = config_dir.join("agent.json");
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(config) = serde_json::from_str::<AgentConfig>(&content) {
+                return config;
+            }
+        }
+        AgentConfig::default()
+    }
+}
+
+#[tauri::command]
+pub fn get_agent_config(state: State<AppState>) -> AgentConfig {
+    let path = state.config_dir.join("agent.json");
+    if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Ok(config) = serde_json::from_str::<AgentConfig>(&content) {
+            return config;
+        }
+    }
+    AgentConfig::default()
+}
+
+#[tauri::command]
+pub fn set_agent_config(config: AgentConfig, state: State<AppState>) -> Result<(), String> {
+    let _ = std::fs::create_dir_all(&state.config_dir);
+    let path = state.config_dir.join("agent.json");
+    let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    std::fs::write(&path, content).map_err(|e| e.to_string())
+}
+
+// ── Status info returned to the frontend ──
+
+#[derive(serde::Serialize)]
+pub struct StatusInfo {
+    pub agent_status: String,
+    pub sandbox_status: String,
+    pub sandbox_name: String,
+    pub data_dir: String,
+    pub data_dir_exists: bool,
+    pub heyvm_available: bool,
+    pub agent_error: Option<String>,
+    pub sandbox_error: Option<String>,
+    pub log_file: String,
+}
+
+#[tauri::command]
+pub async fn get_status_info(state: State<'_, AppState>) -> Result<StatusInfo, String> {
+    let config = get_agent_config(state.clone());
+    let vm_name = config.vm_name.clone();
+
+    let data_path = std::path::Path::new(&config.data_dir);
+    let data_dir_exists = data_path.exists();
+
+    // Check if heyvm is on PATH
+    let heyvm_available = std::process::Command::new("heyvm")
+        .arg("--help")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok();
+
+    // Check sandbox status
+    let (sandbox_status, sandbox_error) = if !heyvm_available {
+        ("unavailable".to_string(), Some("heyvm not found on PATH".to_string()))
+    } else {
+        match crate::services::heyvm::list_sandboxes() {
+            Ok(output) => {
+                if output.contains(&vm_name) {
+                    ("running".to_string(), None)
+                } else {
+                    ("not_created".to_string(), None)
+                }
+            }
+            Err(e) => ("error".to_string(), Some(e)),
+        }
+    };
+
+    // Check agent health
+    let (agent_status, agent_error) = {
+        let active_url = state.agent_url.lock().unwrap().clone();
+        match active_url {
+            Some(url) => {
+                if crate::services::agent::check_health(&url).await {
+                    ("running".to_string(), None)
+                } else {
+                    ("unreachable".to_string(), Some(format!("Agent not responding at {}", url)))
+                }
+            }
+            None => ("disconnected".to_string(), None),
+        }
+    };
+
+    let log_file = crate::logging::log_path()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    Ok(StatusInfo {
+        agent_status,
+        sandbox_status,
+        sandbox_name: vm_name,
+        data_dir: config.data_dir,
+        data_dir_exists,
+        heyvm_available,
+        agent_error,
+        sandbox_error,
+        log_file,
+    })
+}
+
+#[tauri::command]
+pub fn get_recent_logs(lines: Option<usize>) -> String {
+    let n = lines.unwrap_or(40);
+    let path = match crate::logging::log_path() {
+        Some(p) => p,
+        None => return String::new(),
+    };
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return String::new(),
+    };
+    let all: Vec<&str> = content.lines().collect();
+    let start = if all.len() > n { all.len() - n } else { 0 };
+    all[start..].join("\n")
+}

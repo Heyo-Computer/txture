@@ -1,0 +1,235 @@
+import { useState, useEffect } from "preact/hooks";
+import { settingsOpen, agentName } from "../../state/store";
+import { getAgentConfig, setAgentConfig } from "../../api/commands";
+import type { AgentConfig } from "../../types";
+
+const MODELS = [
+  { value: "claude-sonnet-4-6-20250514", label: "Claude Sonnet 4.6" },
+  { value: "claude-opus-4-6-20250514", label: "Claude Opus 4.6" },
+  { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
+];
+
+const BACKENDS = [
+  { value: "libvirt", label: "Libvirt (Linux)" },
+  { value: "apple_vf", label: "Apple VF (macOS)" },
+  { value: "docker", label: "Docker" },
+  { value: "firecracker", label: "Firecracker" },
+  { value: "bubblewrap", label: "Bubblewrap" },
+];
+
+const REGIONS = [
+  { value: "US", label: "US" },
+  { value: "EU", label: "EU" },
+];
+
+const SIZE_CLASSES = [
+  { value: "micro", label: "Micro (0.25 CPU, 0.5 GB)" },
+  { value: "mini", label: "Mini (0.5 CPU, 1 GB)" },
+  { value: "small", label: "Small (1 CPU, 2 GB)" },
+  { value: "medium", label: "Medium (2 CPU, 4 GB)" },
+  { value: "large", label: "Large (4 CPU, 8 GB)" },
+];
+
+const IMAGES = [
+  { value: "ubuntu:24.04", label: "Ubuntu 24.04" },
+  { value: "alpine:3.23", label: "Alpine 3.23" },
+];
+
+const DEFAULT_CONFIG: AgentConfig = {
+  api_key: "",
+  model: "claude-sonnet-4-6-20250514",
+  vm_name: "todo-agent",
+  vm_backend: "libvirt",
+  data_dir: "~/.todo",
+  heyo_api_key: "",
+  heyo_cloud_url: "https://server.heyo.computer",
+  deploy_region: "US",
+  deploy_size_class: "small",
+  deploy_image: "ubuntu:24.04",
+};
+
+export function SettingsPanel() {
+  const [config, setConfig] = useState<AgentConfig>(DEFAULT_CONFIG);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    getAgentConfig().then((c) => {
+      setConfig(c);
+      if (c.vm_name) agentName.value = c.vm_name;
+    }).catch(() => {});
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await setAgentConfig(config);
+      agentName.value = config.vm_name || "ToDo";
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleClose() {
+    settingsOpen.value = false;
+  }
+
+  function update(patch: Partial<AgentConfig>) {
+    setConfig({ ...config, ...patch });
+  }
+
+  if (!settingsOpen.value) return null;
+
+  return (
+    <div class="settings-overlay" onClick={handleClose}>
+      <div class="settings-panel" onClick={(e) => e.stopPropagation()}>
+        <div class="settings-header">
+          <span class="settings-title">Settings</span>
+          <button class="settings-close" onClick={handleClose}>&times;</button>
+        </div>
+
+        <div class="settings-body">
+          {/* ── Agent section ── */}
+          <div class="settings-section-label">Agent</div>
+
+          <label class="settings-field">
+            <span class="settings-label">Anthropic API Key</span>
+            <input
+              type="password"
+              class="settings-input"
+              value={config.api_key}
+              onInput={(e) => update({ api_key: e.currentTarget.value })}
+              placeholder="sk-ant-..."
+            />
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">Model</span>
+            <select
+              class="settings-select"
+              value={config.model}
+              onChange={(e) => update({ model: e.currentTarget.value })}
+            >
+              {MODELS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">VM Name</span>
+            <input
+              type="text"
+              class="settings-input"
+              value={config.vm_name}
+              onInput={(e) => update({ vm_name: e.currentTarget.value })}
+              placeholder="todo-agent"
+            />
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">VM Backend</span>
+            <select
+              class="settings-select"
+              value={config.vm_backend}
+              onChange={(e) => update({ vm_backend: e.currentTarget.value })}
+            >
+              {BACKENDS.map((b) => (
+                <option key={b.value} value={b.value}>{b.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">Data Directory</span>
+            <input
+              type="text"
+              class="settings-input"
+              value={config.data_dir}
+              onInput={(e) => update({ data_dir: e.currentTarget.value })}
+              placeholder="~/.todo"
+            />
+            <span class="settings-hint">Mounted into the VM at /data. Created if missing.</span>
+          </label>
+
+          {/* ── Heyo / Deploy section ── */}
+          <div class="settings-divider" />
+          <div class="settings-section-label">Heyo Cloud</div>
+
+          <label class="settings-field">
+            <span class="settings-label">Heyo API Key</span>
+            <input
+              type="password"
+              class="settings-input"
+              value={config.heyo_api_key}
+              onInput={(e) => update({ heyo_api_key: e.currentTarget.value })}
+              placeholder="heyo_..."
+            />
+            <span class="settings-hint">Used by heyvm to authenticate with Heyo cloud</span>
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">Cloud URL</span>
+            <input
+              type="text"
+              class="settings-input"
+              value={config.heyo_cloud_url}
+              onInput={(e) => update({ heyo_cloud_url: e.currentTarget.value })}
+              placeholder="https://server.heyo.computer"
+            />
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">Deploy Region</span>
+            <select
+              class="settings-select"
+              value={config.deploy_region}
+              onChange={(e) => update({ deploy_region: e.currentTarget.value })}
+            >
+              {REGIONS.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">Size Class</span>
+            <select
+              class="settings-select"
+              value={config.deploy_size_class}
+              onChange={(e) => update({ deploy_size_class: e.currentTarget.value })}
+            >
+              {SIZE_CLASSES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">Image</span>
+            <select
+              class="settings-select"
+              value={config.deploy_image}
+              onChange={(e) => update({ deploy_image: e.currentTarget.value })}
+            >
+              {IMAGES.map((i) => (
+                <option key={i.value} value={i.value}>{i.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div class="settings-footer">
+          {saved && <span class="settings-saved">Saved</span>}
+          <button class="btn btn-secondary btn-sm" onClick={handleClose}>Cancel</button>
+          <button class="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
