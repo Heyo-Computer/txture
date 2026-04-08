@@ -37,6 +37,8 @@ pub struct AgentConfig {
     pub deploy_size_class: String,
     #[serde(default = "default_image")]
     pub deploy_image: String,
+    #[serde(default)]
+    pub speech_api_key: String,
 }
 
 impl Default for AgentConfig {
@@ -58,6 +60,7 @@ impl Default for AgentConfig {
             deploy_region: default_region(),
             deploy_size_class: default_size_class(),
             deploy_image: default_image(),
+            speech_api_key: String::new(),
         }
     }
 }
@@ -128,15 +131,9 @@ pub async fn get_status_info(state: State<'_, AppState>) -> Result<StatusInfo, S
     let (sandbox_status, sandbox_error) = if !heyvm_available {
         ("unavailable".to_string(), Some("heyvm not found on PATH".to_string()))
     } else {
-        match crate::services::heyvm::list_sandboxes() {
-            Ok(output) => {
-                if output.contains(&vm_name) {
-                    ("running".to_string(), None)
-                } else {
-                    ("not_created".to_string(), None)
-                }
-            }
-            Err(e) => ("error".to_string(), Some(e)),
+        match crate::services::heyvm::sandbox_status(&vm_name) {
+            Some(status) => (status, None),
+            None => ("not_created".to_string(), None),
         }
     };
 

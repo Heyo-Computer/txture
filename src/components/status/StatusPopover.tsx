@@ -1,8 +1,8 @@
 import { useState, useEffect } from "preact/hooks";
 import { statusPopoverOpen, agentStatus } from "../../state/store";
-import { getStatusInfo, stopVm, setupAgent, startAgent, stopAgent, getRecentLogs } from "../../api/commands";
+import { getStatusInfo, stopVm, setupAgent, startAgent, stopAgent, getRecentLogs, getCalendarStatus, syncCalendarToTodos } from "../../api/commands";
 import { listen } from "@tauri-apps/api/event";
-import type { StatusInfo } from "../../types";
+import type { StatusInfo, CalendarStatus } from "../../types";
 
 function StatusDot({ status }: { status: string }) {
   const cls =
@@ -31,6 +31,8 @@ export function StatusPopover() {
   const [actionMsg, setActionMsg] = useState("");
   const [showLogs, setShowLogs] = useState(false);
   const [logContent, setLogContent] = useState("");
+  const [calStatus, setCalStatus] = useState<CalendarStatus | null>(null);
+  const [calSyncing, setCalSyncing] = useState(false);
 
   function refresh() {
     setLoading(true);
@@ -45,6 +47,9 @@ export function StatusPopover() {
     if (statusPopoverOpen.value) {
       refresh();
       setShowLogs(false);
+      getCalendarStatus()
+        .then(setCalStatus)
+        .catch(() => setCalStatus(null));
     }
   }, [statusPopoverOpen.value]);
 
@@ -131,17 +136,32 @@ export function StatusPopover() {
     }
   }
 
-  const needsSetup = info && (
-    info.sandbox_status === "not_created" ||
-    (info.sandbox_status !== "running" && info.agent_status === "disconnected")
-  );
+  async function handleCalendarSync() {
+    setCalSyncing(true);
+    setActionMsg("");
+    try {
+      const msg = await syncCalendarToTodos();
+      setActionMsg(msg);
+    } catch (e) {
+      setActionMsg(`Calendar sync failed: ${e}`);
+    } finally {
+      setCalSyncing(false);
+    }
+  }
+
+  const needsSetup = info && info.sandbox_status === "not_created";
+  const sandboxStopped = info && info.sandbox_status === "stopped";
 
   return (
-    <div class="status-popover-overlay" onClick={close}>
-      <div class="status-popover" onClick={(e) => e.stopPropagation()}>
+    <div class="status-popover-overlay" onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
+      <div class="status-popover">
         <div class="status-popover-header">
           <span class="status-popover-title">Status</span>
-          <button class="settings-close" onClick={close}>&times;</button>
+          <button class="settings-close" onClick={close} title="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
         </div>
 
         {loading && !info && (
@@ -157,6 +177,7 @@ export function StatusPopover() {
 
             <Row label="Sandbox" value={info.sandbox_status} status={
               info.sandbox_status === "running" ? "running" :
+              info.sandbox_status === "stopped" ? "disconnected" :
               info.sandbox_status === "not_created" ? "disconnected" : "error"
             } />
             <Row label="Name" value={info.sandbox_name} />
@@ -178,7 +199,7 @@ export function StatusPopover() {
               <div class="status-divider" />
             )}
 
-            {/* Setup button or running actions */}
+            {/* Setup button for fresh sandbox */}
             {!setupRunning && info.heyvm_available && needsSetup && (
               <div class="setup-section">
                 <div class="setup-description">
@@ -190,12 +211,21 @@ export function StatusPopover() {
               </div>
             )}
 
-            {!setupRunning && info.heyvm_available && !needsSetup && (
+            {/* Stopped sandbox — just needs a start */}
+            {!setupRunning && info.heyvm_available && sandboxStopped && (
+              <div class="status-actions">
+                <button class="btn btn-sm btn-primary" onClick={handleFullSetup}>Start Agent</button>
+                <button class="btn btn-sm btn-ghost" onClick={refresh} disabled={loading}>Refresh</button>
+              </div>
+            )}
+
+            {/* Running sandbox actions */}
+            {!setupRunning && info.heyvm_available && !needsSetup && !sandboxStopped && (
               <div class="status-actions">
                 {info.sandbox_status === "running" && info.agent_status === "disconnected" && (
                   <button class="btn btn-sm btn-primary" onClick={handleStartAgent}>Start Agent</button>
                 )}
-                {info.agent_status === "running" && (
+                {(info.agent_status === "running" || info.agent_status === "unreachable") && (
                   <button class="btn btn-sm btn-secondary" onClick={handleStopAgent}>Stop Agent</button>
                 )}
                 {info.sandbox_status === "running" && (
@@ -209,6 +239,17 @@ export function StatusPopover() {
               <div class="status-error" style={{ marginTop: "6px" }}>
                 Install heyvm to create and manage sandboxes.
               </div>
+            )}
+
+            {calStatus?.connected && (
+              <>
+                <div class="status-divider" />
+                <div class="status-actions">
+                  <button class="btn btn-sm btn-primary" onClick={handleCalendarSync} disabled={calSyncing}>
+                    {calSyncing ? "Syncing..." : "Sync Calendar"}
+                  </button>
+                </div>
+              </>
             )}
 
             {actionMsg && <div class="status-action-msg">{actionMsg}</div>}

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { DayEntry, TodoItem, AgentMessage, Artifact, Theme, AgentConfig, StatusInfo } from "../types";
+import type { DayEntry, TodoItem, AgentMessage, Artifact, Theme, AgentConfig, StatusInfo, CalendarConfig, CalendarStatus, CalendarEvent } from "../types";
 
 // Storage commands
 export async function loadDay(date: string): Promise<DayEntry> {
@@ -109,4 +109,38 @@ export async function getStatusInfo(): Promise<StatusInfo> {
 
 export async function getRecentLogs(lines?: number): Promise<string> {
   return invoke("get_recent_logs", { lines });
+}
+
+// Calendar commands
+export async function getCalendarConfig(): Promise<CalendarConfig> {
+  return invoke("get_calendar_config");
+}
+
+export async function setCalendarConfig(config: CalendarConfig): Promise<void> {
+  return invoke("set_calendar_config", { config });
+}
+
+export async function getCalendarStatus(): Promise<CalendarStatus> {
+  return invoke("get_calendar_status");
+}
+
+export async function connectGoogleCalendar(): Promise<string> {
+  return invoke("connect_google_calendar");
+}
+
+export async function disconnectGoogleCalendar(): Promise<void> {
+  return invoke("disconnect_google_calendar");
+}
+
+export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
+  return invoke("fetch_calendar_events");
+}
+
+export async function syncCalendarToTodos(): Promise<string> {
+  return invoke("sync_calendar_to_todos");
+}
+
+// Speech commands
+export async function transcribeAudio(audioData: string, mediaType: string): Promise<string> {
+  return invoke("transcribe_audio", { audioData, mediaType });
 }

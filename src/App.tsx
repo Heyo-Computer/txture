@@ -1,13 +1,15 @@
 import { ThemeProvider } from "./theme/ThemeProvider";
 import { useTheme } from "./theme/ThemeProvider";
-import { useRef, useCallback } from "preact/hooks";
+import { useRef, useCallback, useEffect } from "preact/hooks";
 import { activeTab, agentStatus, settingsOpen, agentName, statusPopoverOpen } from "./state/store";
 import { DayAccordion } from "./components/days/DayAccordion";
 import { ArtifactsPanel } from "./components/artifacts/ArtifactsPanel";
 import { ChatWindow } from "./components/chat/ChatWindow";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { StatusPopover } from "./components/status/StatusPopover";
-import type { ViewTab } from "./types";
+import { setupEventListeners } from "./api/events";
+import { getAgentStatus } from "./api/commands";
+import type { ViewTab, AgentStatus } from "./types";
 import { signal } from "@preact/signals";
 
 const tabs: { id: ViewTab; label: string }[] = [
@@ -22,6 +24,14 @@ function AppShell() {
   const { theme, setTheme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+
+  useEffect(() => {
+    setupEventListeners();
+    // Sync initial agent status (auto-start may have finished before listener was ready)
+    getAgentStatus().then((s) => {
+      agentStatus.value = s as AgentStatus;
+    }).catch(() => {});
+  }, []);
 
   const onMouseDown = useCallback((e: MouseEvent) => {
     e.preventDefault();

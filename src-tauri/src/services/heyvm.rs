@@ -40,10 +40,20 @@ pub fn list_sandboxes() -> Result<String, String> {
 }
 
 pub fn sandbox_exists(name: &str) -> bool {
-    match list_sandboxes() {
-        Ok(output) => output.contains(name),
-        Err(_) => false,
+    sandbox_status(name).is_some()
+}
+
+/// Parse `heyvm list` output and return the STATUS value for the given sandbox name.
+pub fn sandbox_status(name: &str) -> Option<String> {
+    let output = list_sandboxes().ok()?;
+    for line in output.lines() {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        // Table rows: NAME  ID  STATUS  BACKEND  TYPE / IMAGE
+        if cols.len() >= 3 && cols[0] == name {
+            return Some(cols[2].to_lowercase());
+        }
     }
+    None
 }
 
 #[derive(serde::Deserialize)]

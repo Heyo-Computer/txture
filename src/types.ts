@@ -50,6 +50,27 @@ export interface AgentConfig {
   deploy_region: string;
   deploy_size_class: string;
   deploy_image: string;
+  speech_api_key: string;
+}
+
+export interface CalendarConfig {
+  client_id: string;
+  client_secret: string;
+  enabled: boolean;
+  calendar_id: string;
+}
+
+export interface CalendarStatus {
+  configured: boolean;
+  connected: boolean;
+  token_valid: boolean;
+  enabled: boolean;
+}
+
+export interface CalendarEvent {
+  summary: string;
+  start_time: string;
+  end_time: string;
 }
 
 export interface StatusInfo {

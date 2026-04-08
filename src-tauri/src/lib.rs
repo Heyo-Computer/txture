@@ -19,9 +19,29 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(app_state)
         .setup(|app| {
+            // Grant microphone permission on Linux (WebKitGTK)
+            #[cfg(target_os = "linux")]
+            {
+                use tauri::Manager;
+                use webkit2gtk::{WebViewExt, SettingsExt, PermissionRequestExt, PermissionRequest};
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.with_webview(|webview| {
+                        let wv = webview.inner();
+                        if let Some(settings) = wv.settings() {
+                            settings.set_enable_media_stream(true);
+                        }
+                        wv.connect_permission_request(|_, request: &PermissionRequest| {
+                            request.allow();
+                            true
+                        });
+                    });
+                }
+            }
+
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                commands::agent::auto_start_agent(handle).await;
+                commands::agent::auto_start_agent(handle.clone()).await;
+                commands::calendar::auto_sync_calendar(handle).await;
             });
             Ok(())
         })
@@ -60,6 +80,16 @@ pub fn run() {
             commands::config::set_agent_config,
             commands::config::get_status_info,
             commands::config::get_recent_logs,
+            // Calendar
+            commands::calendar::get_calendar_config,
+            commands::calendar::set_calendar_config,
+            commands::calendar::get_calendar_status,
+            commands::calendar::connect_google_calendar,
+            commands::calendar::disconnect_google_calendar,
+            commands::calendar::fetch_calendar_events,
+            commands::calendar::sync_calendar_to_todos,
+            // Speech
+            commands::speech::transcribe_audio,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

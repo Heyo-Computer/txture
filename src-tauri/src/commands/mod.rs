@@ -4,3 +4,5 @@ pub mod heyvm;
 pub mod agent;
 pub mod artifacts;
 pub mod config;
+pub mod calendar;
+pub mod speech;

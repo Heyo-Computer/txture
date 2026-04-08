@@ -30,8 +30,12 @@ export function TodoItem({ todo, date, onToggle, onDelete, onUpdate }: TodoItemP
         <button class="todo-expand-btn" onClick={toggleExpand}>
           {isExpanded ? "Collapse" : "Spec"}
         </button>
-        <button class="todo-expand-btn" onClick={onDelete} title="Delete">
-          &times;
+        <button class="todo-expand-btn todo-delete-btn" onClick={onDelete} title="Delete">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6" /><path d="M14 11v6" />
+          </svg>
         </button>
       </div>
       {isExpanded && (

@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "preact/hooks";
+import { useState, useRef, useEffect, useCallback } from "preact/hooks";
 import { days } from "../../state/store";
+import { useVoiceInput, voiceState, voiceError } from "../../hooks/useVoiceInput";
 import type { TodoItem } from "../../types";
 
 interface ChatInputProps {
@@ -19,6 +20,17 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [mentionIndex, setMentionIndex] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleTranscription = useCallback((transcribed: string) => {
+    setText((prev) => (prev ? prev + " " + transcribed : transcribed));
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
+  const { toggle: toggleVoice } = useVoiceInput(handleTranscription);
+  const vState = voiceState.value;
+  const vError = voiceError.value;
 
   // Build flat list of all todos across loaded days
   function getMentionOptions(): MentionOption[] {
@@ -134,41 +146,64 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   }, [mentionIndex, showMentions]);
 
   return (
-    <div class="chat-input-area">
-      {showMentions && options.length > 0 && (
-        <div class="mention-menu" ref={menuRef}>
-          {options.map((opt, i) => (
-            <div
-              key={opt.todo.id}
-              class={`mention-item${i === mentionIndex ? " selected" : ""}`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                insertMention(opt);
-              }}
-            >
-              <span class="mention-title">{opt.todo.title}</span>
-              <span class="mention-date">{opt.date}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      <textarea
-        ref={inputRef}
-        class="chat-input"
-        value={text}
-        onInput={handleInput}
-        onKeyDown={handleKeyDown}
-        placeholder="Message the agent... (@ to mention a todo)"
-        disabled={disabled}
-        rows={1}
-      />
-      <button
-        class="btn btn-primary"
-        onClick={handleSubmit}
-        disabled={disabled || !text.trim()}
-      >
-        Send
-      </button>
-    </div>
+    <>
+      {vError && <div class="voice-error">{vError}</div>}
+      <div class="chat-input-area">
+        {showMentions && options.length > 0 && (
+          <div class="mention-menu" ref={menuRef}>
+            {options.map((opt, i) => (
+              <div
+                key={opt.todo.id}
+                class={`mention-item${i === mentionIndex ? " selected" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  insertMention(opt);
+                }}
+              >
+                <span class="mention-title">{opt.todo.title}</span>
+                <span class="mention-date">{opt.date}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <textarea
+          ref={inputRef}
+          class="chat-input"
+          value={text}
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          placeholder="Message the agent... (@ to mention a todo)"
+          disabled={disabled}
+          rows={1}
+        />
+        <button
+          class={`btn btn-icon mic-btn${vState === "recording" ? " recording" : ""}${vState === "transcribing" ? " transcribing" : ""}`}
+          onClick={toggleVoice}
+          disabled={disabled || vState === "transcribing"}
+          title={
+            vState === "recording" ? "Stop recording (Ctrl+H)" :
+            vState === "transcribing" ? "Transcribing..." :
+            "Voice input (Ctrl+H)"
+          }
+        >
+          {vState === "transcribing" ? (
+            <span class="mic-spinner" />
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="22" />
+            </svg>
+          )}
+        </button>
+        <button
+          class="btn btn-primary"
+          onClick={handleSubmit}
+          disabled={disabled || !text.trim()}
+        >
+          Send
+        </button>
+      </div>
+    </>
   );
 }

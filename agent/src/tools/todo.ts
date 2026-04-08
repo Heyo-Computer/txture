@@ -77,6 +77,68 @@ export function updateTodo(
   return `Updated "${todo.title}" (completed=${todo.completed})`;
 }
 
+export function addTodo(date: string, title: string): DayEntry {
+  const entry = loadDay(date);
+  const now = new Date().toISOString();
+  entry.todos.push({
+    id: crypto.randomUUID(),
+    title,
+    completed: false,
+    has_spec: false,
+    created_at: now,
+    updated_at: now,
+  });
+  saveDay(entry);
+  return entry;
+}
+
+export function deleteTodo(date: string, todoId: string): DayEntry {
+  const entry = loadDay(date);
+  const specPath = path.join(dayDir(date), "specs", `${todoId}.md`);
+  entry.todos = entry.todos.filter((t) => t.id !== todoId);
+  try { fs.unlinkSync(specPath); } catch {}
+  saveDay(entry);
+  return entry;
+}
+
+export function loadDayEntry(date: string): DayEntry {
+  return loadDay(date);
+}
+
+export function loadDaysRange(): DayEntry[] {
+  const today = new Date();
+  const entries: DayEntry[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    entries.push(loadDay(dateStr));
+  }
+  return entries;
+}
+
+export function loadSpecContent(date: string, todoId: string): string {
+  const specPath = path.join(dayDir(date), "specs", `${todoId}.md`);
+  try {
+    return fs.readFileSync(specPath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+
+export function updateTodoEntry(date: string, todo: TodoItem): DayEntry {
+  const entry = loadDay(date);
+  const existing = entry.todos.find((t) => t.id === todo.id);
+  if (existing) {
+    existing.title = todo.title;
+    existing.completed = todo.completed;
+    existing.has_spec = todo.has_spec;
+    existing.updated_at = new Date().toISOString();
+  }
+  saveDay(entry);
+  return entry;
+}
+
 export function getTodosForDate(date?: string): string {
   const d = date || new Date().toISOString().slice(0, 10);
   const entry = loadDay(d);

@@ -1,7 +1,12 @@
 import { useState, useEffect } from "preact/hooks";
 import { settingsOpen, agentName } from "../../state/store";
-import { getAgentConfig, setAgentConfig } from "../../api/commands";
-import type { AgentConfig } from "../../types";
+import {
+  getAgentConfig, setAgentConfig,
+  getCalendarConfig, setCalendarConfig,
+  getCalendarStatus, connectGoogleCalendar,
+  disconnectGoogleCalendar, syncCalendarToTodos,
+} from "../../api/commands";
+import type { AgentConfig, CalendarConfig, CalendarStatus } from "../../types";
 
 const MODELS = [
   { value: "claude-sonnet-4-6-20250514", label: "Claude Sonnet 4.6" },
@@ -46,10 +51,22 @@ const DEFAULT_CONFIG: AgentConfig = {
   deploy_region: "US",
   deploy_size_class: "small",
   deploy_image: "ubuntu:24.04",
+  speech_api_key: "",
+};
+
+const DEFAULT_CAL_CONFIG: CalendarConfig = {
+  client_id: "",
+  client_secret: "",
+  enabled: false,
+  calendar_id: "",
 };
 
 export function SettingsPanel() {
   const [config, setConfig] = useState<AgentConfig>(DEFAULT_CONFIG);
+  const [calConfig, setCalConfig] = useState<CalendarConfig>(DEFAULT_CAL_CONFIG);
+  const [calStatus, setCalStatus] = useState<CalendarStatus | null>(null);
+  const [calConnecting, setCalConnecting] = useState(false);
+  const [calMessage, setCalMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -58,6 +75,8 @@ export function SettingsPanel() {
       setConfig(c);
       if (c.vm_name) agentName.value = c.vm_name;
     }).catch(() => {});
+    getCalendarConfig().then(setCalConfig).catch(() => {});
+    getCalendarStatus().then(setCalStatus).catch(() => {});
   }, []);
 
   async function handleSave() {
@@ -65,11 +84,44 @@ export function SettingsPanel() {
     setSaved(false);
     try {
       await setAgentConfig(config);
+      await setCalendarConfig(calConfig);
       agentName.value = config.vm_name || "ToDo";
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleCalConnect() {
+    setCalConnecting(true);
+    setCalMessage("");
+    try {
+      // Save config first so the backend has the credentials
+      await setCalendarConfig(calConfig);
+      const msg = await connectGoogleCalendar();
+      setCalMessage(msg);
+      getCalendarStatus().then(setCalStatus).catch(() => {});
+    } catch (err) {
+      setCalMessage(`${err}`);
+    } finally {
+      setCalConnecting(false);
+    }
+  }
+
+  async function handleCalDisconnect() {
+    await disconnectGoogleCalendar();
+    setCalMessage("Disconnected.");
+    getCalendarStatus().then(setCalStatus).catch(() => {});
+  }
+
+  async function handleCalSync() {
+    setCalMessage("");
+    try {
+      const msg = await syncCalendarToTodos();
+      setCalMessage(msg);
+    } catch (err) {
+      setCalMessage(`${err}`);
     }
   }
 
@@ -84,11 +136,15 @@ export function SettingsPanel() {
   if (!settingsOpen.value) return null;
 
   return (
-    <div class="settings-overlay" onClick={handleClose}>
-      <div class="settings-panel" onClick={(e) => e.stopPropagation()}>
+    <div class="settings-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div class="settings-panel">
         <div class="settings-header">
           <span class="settings-title">Settings</span>
-          <button class="settings-close" onClick={handleClose}>&times;</button>
+          <button class="settings-close" onClick={handleClose} title="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
         </div>
 
         <div class="settings-body">
@@ -220,6 +276,89 @@ export function SettingsPanel() {
               ))}
             </select>
           </label>
+          {/* ── Speech section ── */}
+          <div class="settings-divider" />
+          <div class="settings-section-label">Speech</div>
+
+          <label class="settings-field">
+            <span class="settings-label">OpenAI API Key</span>
+            <input
+              type="password"
+              class="settings-input"
+              value={config.speech_api_key}
+              onInput={(e) => update({ speech_api_key: e.currentTarget.value })}
+              placeholder="sk-..."
+            />
+            <span class="settings-hint">Used for Whisper voice transcription (Ctrl+H)</span>
+          </label>
+
+          {/* ── Calendar section ── */}
+          <div class="settings-divider" />
+          <div class="settings-section-label">Google Calendar</div>
+
+          <label class="settings-field">
+            <span class="settings-label">OAuth Client ID</span>
+            <input
+              type="text"
+              class="settings-input"
+              value={calConfig.client_id}
+              onInput={(e) => setCalConfig({ ...calConfig, client_id: e.currentTarget.value })}
+              placeholder="xxxx.apps.googleusercontent.com"
+            />
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">OAuth Client Secret</span>
+            <input
+              type="password"
+              class="settings-input"
+              value={calConfig.client_secret}
+              onInput={(e) => setCalConfig({ ...calConfig, client_secret: e.currentTarget.value })}
+            />
+          </label>
+
+          <label class="settings-field">
+            <span class="settings-label">Calendar ID</span>
+            <input
+              type="text"
+              class="settings-input"
+              value={calConfig.calendar_id}
+              onInput={(e) => setCalConfig({ ...calConfig, calendar_id: e.currentTarget.value })}
+              placeholder="primary"
+            />
+            <span class="settings-hint">Leave blank for your primary calendar</span>
+          </label>
+
+          <label class="settings-field settings-checkbox-field">
+            <input
+              type="checkbox"
+              checked={calConfig.enabled}
+              onChange={(e) => setCalConfig({ ...calConfig, enabled: e.currentTarget.checked })}
+            />
+            <span class="settings-label">Sync events to todos on startup</span>
+          </label>
+
+          <div class="settings-field" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {calStatus?.connected ? (
+              <>
+                <span class="settings-hint" style={{ color: "var(--color-accent)" }}>Connected</span>
+                <button class="btn btn-sm btn-ghost" onClick={handleCalSync}>Sync now</button>
+                <button class="btn btn-sm btn-ghost" onClick={handleCalDisconnect}>Disconnect</button>
+              </>
+            ) : (
+              <button
+                class="btn btn-sm btn-primary"
+                onClick={handleCalConnect}
+                disabled={calConnecting || !calConfig.client_id || !calConfig.client_secret}
+              >
+                {calConnecting ? "Connecting..." : "Connect Google Calendar"}
+              </button>
+            )}
+          </div>
+
+          {calMessage && (
+            <div class="settings-hint" style={{ marginTop: "4px" }}>{calMessage}</div>
+          )}
         </div>
 
         <div class="settings-footer">

@@ -9,7 +9,7 @@ export function execCommand(command: string): string {
       encoding: "utf-8",
       timeout: TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
-      cwd: "/storage",
+      cwd: "/data",
     });
     if (output.length > MAX_OUTPUT) {
       return output.slice(0, MAX_OUTPUT) + "\n... (output truncated)";
