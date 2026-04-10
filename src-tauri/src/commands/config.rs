@@ -18,6 +18,11 @@ fn default_size_class() -> String {
 fn default_image() -> String {
     "ubuntu:24.04".to_string()
 }
+fn default_spec_verbosity() -> String {
+    "normal".to_string()
+}
+
+const USER_CONTEXT_MAX: usize = 1000;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct AgentConfig {
@@ -39,6 +44,10 @@ pub struct AgentConfig {
     pub deploy_image: String,
     #[serde(default)]
     pub speech_api_key: String,
+    #[serde(default = "default_spec_verbosity")]
+    pub spec_verbosity: String,
+    #[serde(default)]
+    pub user_context: String,
 }
 
 impl Default for AgentConfig {
@@ -61,6 +70,8 @@ impl Default for AgentConfig {
             deploy_size_class: default_size_class(),
             deploy_image: default_image(),
             speech_api_key: String::new(),
+            spec_verbosity: default_spec_verbosity(),
+            user_context: String::new(),
         }
     }
 }
@@ -89,7 +100,17 @@ pub fn get_agent_config(state: State<AppState>) -> AgentConfig {
 }
 
 #[tauri::command]
-pub fn set_agent_config(config: AgentConfig, state: State<AppState>) -> Result<(), String> {
+pub fn set_agent_config(mut config: AgentConfig, state: State<AppState>) -> Result<(), String> {
+    // Validate spec_verbosity
+    if !["terse", "normal", "detailed"].contains(&config.spec_verbosity.as_str()) {
+        config.spec_verbosity = "normal".to_string();
+    }
+    // Cap user_context length
+    if config.user_context.chars().count() > USER_CONTEXT_MAX {
+        let truncated: String = config.user_context.chars().take(USER_CONTEXT_MAX).collect();
+        config.user_context = truncated;
+    }
+
     let _ = std::fs::create_dir_all(&state.config_dir);
     let path = state.config_dir.join("agent.json");
     let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;

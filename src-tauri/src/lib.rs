@@ -106,6 +106,7 @@ pub fn run() {
             commands::speech::transcribe_audio,
             commands::speech::transcribe_file,
             commands::speech::speak_text,
+            commands::speech::describe_image,
             // Deploy
             commands::deploy::deploy_agent,
             commands::deploy::connect_remote,

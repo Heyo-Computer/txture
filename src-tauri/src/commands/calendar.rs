@@ -65,17 +65,18 @@ pub async fn disconnect_google_calendar(state: State<'_, AppState>) -> Result<()
     Ok(())
 }
 
-/// Fetch today's events and return them (without syncing to todos).
+/// Fetch upcoming events for the next 30 days (without syncing to todos).
 #[tauri::command]
 pub async fn fetch_calendar_events(
     state: State<'_, AppState>,
 ) -> Result<Vec<cal::CalendarEvent>, String> {
     let tokens = ensure_valid_token(&state).await?;
     let config = cal::CalendarConfig::load(&state.config_dir);
-    cal::fetch_todays_events(&tokens.access_token, &config.calendar_id).await
+    cal::fetch_events_range(&tokens.access_token, &config.calendar_id, 0, 30).await
 }
 
-/// Sync today's calendar events into the todo list.
+/// Sync the next 30 days of calendar events into the todo list.
+/// For events with a meeting URL, also generate a markdown spec on the new todo.
 #[tauri::command]
 pub async fn sync_calendar_to_todos(
     state: State<'_, AppState>,
@@ -93,24 +94,111 @@ pub async fn sync_calendar_to_todos(
         }
     };
 
-    let events = cal::fetch_todays_events(&tokens.access_token, &config.calendar_id).await?;
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let day = storage::load_day(&state.storage_root, &today);
-    let existing_titles: Vec<String> = day.todos.iter().map(|t| t.title.clone()).collect();
+    let events = cal::fetch_events_range(&tokens.access_token, &config.calendar_id, 0, 30).await?;
 
-    let mut added = 0;
-    for event in &events {
-        let title = format_event_title(event);
-        if !existing_titles.contains(&title) {
-            storage::add_todo(&state.storage_root, &today, &title)
-                .map_err(|e| format!("Failed to add todo: {}", e))?;
-            added += 1;
-        }
+    // Cache events for the agent tool
+    if let Err(e) = storage::save_calendar_events(&state.data_dir, &events) {
+        logging::warn(&format!("calendar sync: failed to cache events: {}", e));
     }
+
+    let added = sync_events_to_storage(&state.storage_root, &events);
 
     let msg = format!("Synced {} events, added {} new todos.", events.len(), added);
     logging::info(&format!("calendar: {}", msg));
     Ok(msg)
+}
+
+/// Group events by date and add them as todos. Generates a spec for each event with a meeting URL.
+/// Returns the number of todos added.
+fn sync_events_to_storage(storage_root: &std::path::Path, events: &[cal::CalendarEvent]) -> usize {
+    use std::collections::HashMap;
+
+    // Group events by date (YYYY-MM-DD)
+    let mut by_date: HashMap<String, Vec<&cal::CalendarEvent>> = HashMap::new();
+    for event in events {
+        if let Some(date) = event_date(event) {
+            by_date.entry(date).or_default().push(event);
+        }
+    }
+
+    let mut added_total = 0;
+    for (date, day_events) in by_date {
+        let day = storage::load_day(storage_root, &date);
+        let existing_titles: Vec<String> = day.todos.iter().map(|t| t.title.clone()).collect();
+
+        for event in day_events {
+            let title = format_event_title(event);
+            if existing_titles.contains(&title) {
+                continue;
+            }
+            match storage::add_todo(storage_root, &date, &title) {
+                Ok(entry) => {
+                    added_total += 1;
+                    // If this event has a meeting URL, generate a spec for the new todo (last one in entry)
+                    if !event.meeting_url.is_empty() {
+                        if let Some(new_todo) = entry.todos.last() {
+                            let spec = render_event_spec(event);
+                            if let Err(e) = storage::save_spec(storage_root, &date, &new_todo.id, &spec) {
+                                logging::warn(&format!("calendar sync: failed to save spec for {}: {}", new_todo.id, e));
+                                continue;
+                            }
+                            // Mark has_spec=true on the todo
+                            let mut updated = new_todo.clone();
+                            updated.has_spec = true;
+                            let _ = storage::update_todo(storage_root, &date, updated);
+                        }
+                    }
+                }
+                Err(e) => {
+                    logging::warn(&format!("calendar sync: failed to add todo for {}: {}", date, e));
+                }
+            }
+        }
+    }
+
+    added_total
+}
+
+/// Extract YYYY-MM-DD from a calendar event's start_time. Returns None if start_time is empty
+/// or unparseable. All-day events use a "date" field which is already YYYY-MM-DD.
+fn event_date(event: &cal::CalendarEvent) -> Option<String> {
+    if event.start_time.is_empty() {
+        return None;
+    }
+    // Format is either "2026-04-09" (all-day) or "2026-04-09T10:00:00-06:00" (timed)
+    let date_part = event.start_time.split('T').next()?;
+    if date_part.len() == 10 {
+        Some(date_part.to_string())
+    } else {
+        None
+    }
+}
+
+/// Render a markdown spec for a calendar event.
+fn render_event_spec(event: &cal::CalendarEvent) -> String {
+    let mut s = String::new();
+    s.push_str(&format!("# {}\n\n", event.summary));
+    if !event.start_time.is_empty() || !event.end_time.is_empty() {
+        s.push_str(&format!("**When**: {} - {}\n", event.start_time, event.end_time));
+    }
+    if !event.location.is_empty() {
+        s.push_str(&format!("**Where**: {}\n", event.location));
+    }
+    if !event.meeting_url.is_empty() {
+        s.push_str(&format!("**Meeting link**: {}\n", event.meeting_url));
+    }
+    if !event.attendees.is_empty() {
+        s.push_str("\n**Attendees**:\n");
+        for a in &event.attendees {
+            s.push_str(&format!("- {}\n", a));
+        }
+    }
+    if !event.description.is_empty() {
+        s.push_str("\n---\n\n");
+        s.push_str(&event.description);
+        s.push('\n');
+    }
+    s
 }
 
 /// Called from startup hook — sync silently if configured.
@@ -146,20 +234,14 @@ pub async fn auto_sync_calendar(app: AppHandle) {
         }
     };
 
-    match cal::fetch_todays_events(&access_token, &config.calendar_id).await {
+    match cal::fetch_events_range(&access_token, &config.calendar_id, 0, 30).await {
         Ok(events) => {
-            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-            let day = storage::load_day(&state.storage_root, &today);
-            let existing_titles: Vec<String> = day.todos.iter().map(|t| t.title.clone()).collect();
-
-            let mut added = 0;
-            for event in &events {
-                let title = format_event_title(event);
-                if !existing_titles.contains(&title) {
-                    let _ = storage::add_todo(&state.storage_root, &today, &title);
-                    added += 1;
-                }
+            // Cache events for the agent tool
+            if let Err(e) = storage::save_calendar_events(&state.data_dir, &events) {
+                logging::warn(&format!("calendar auto-sync: failed to cache events: {}", e));
             }
+
+            let added = sync_events_to_storage(&state.storage_root, &events);
             if added > 0 {
                 logging::info(&format!("calendar auto-sync: added {} events as todos", added));
                 let _ = app.emit("calendar-synced", added);

@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect } from "preact/hooks";
 import { activeTab, agentStatus, agentMode, settingsOpen, agentName, statusPopoverOpen, days } from "./state/store";
 import { WeekAccordion } from "./components/days/DayAccordion";
 import { MonthAccordion } from "./components/days/MonthAccordion";
+import { DayPanel } from "./components/days/DayPanel";
 import { ArtifactsPanel } from "./components/artifacts/ArtifactsPanel";
 import { ChatWindow } from "./components/chat/ChatWindow";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
@@ -14,6 +15,7 @@ import type { ViewTab, AgentStatus } from "./types";
 import { signal } from "@preact/signals";
 
 const tabs: { id: ViewTab; label: string }[] = [
+  { id: "day", label: "Day" },
   { id: "week", label: "Week" },
   { id: "month", label: "Month" },
   { id: "artifacts", label: "Artifacts" },
@@ -41,7 +43,17 @@ function AppShell() {
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+
+    // Prevent the webview from navigating when files are dropped outside the chat input
+    const swallow = (e: DragEvent) => { e.preventDefault(); };
+    document.addEventListener("dragover", swallow);
+    document.addEventListener("drop", swallow);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      document.removeEventListener("dragover", swallow);
+      document.removeEventListener("drop", swallow);
+    };
   }, []);
 
   const onMouseDown = useCallback((e: MouseEvent) => {
@@ -128,6 +140,7 @@ function AppShell() {
 
       {/* Scrollable content area */}
       <div class="content-area" style={contentStyle}>
+        {activeTab.value === "day" && <DayPanel />}
         {activeTab.value === "week" && <WeekAccordion />}
         {activeTab.value === "month" && <MonthAccordion />}
         {activeTab.value === "artifacts" && <ArtifactsPanel />}

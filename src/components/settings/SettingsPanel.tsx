@@ -52,7 +52,17 @@ const DEFAULT_CONFIG: AgentConfig = {
   deploy_size_class: "small",
   deploy_image: "ubuntu:24.04",
   speech_api_key: "",
+  spec_verbosity: "normal",
+  user_context: "",
 };
+
+const VERBOSITIES: { value: "terse" | "normal" | "detailed"; label: string; hint: string }[] = [
+  { value: "terse", label: "Terse", hint: "Brief and to the point" },
+  { value: "normal", label: "Normal", hint: "Default level of detail" },
+  { value: "detailed", label: "Detailed", hint: "Thorough with context and rationale" },
+];
+
+const USER_CONTEXT_MAX = 1000;
 
 const DEFAULT_CAL_CONFIG: CalendarConfig = {
   client_id: "",
@@ -290,6 +300,49 @@ export function SettingsPanel() {
               placeholder="..."
             />
             <span class="settings-hint">Used for Voxtral voice transcription (Ctrl+H)</span>
+          </label>
+
+          {/* ── Spec writing section ── */}
+          <div class="settings-divider" />
+          <div class="settings-section-label">Spec Writing</div>
+
+          <div class="settings-field">
+            <span class="settings-label">Verbosity</span>
+            <div class="settings-radio-group">
+              {VERBOSITIES.map((v) => (
+                <label key={v.value} class="settings-radio">
+                  <input
+                    type="radio"
+                    name="spec-verbosity"
+                    value={v.value}
+                    checked={config.spec_verbosity === v.value}
+                    onChange={() => update({ spec_verbosity: v.value })}
+                  />
+                  <span class="settings-radio-label">
+                    <span class="settings-radio-title">{v.label}</span>
+                    <span class="settings-radio-hint">{v.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <label class="settings-field">
+            <span class="settings-label">About me</span>
+            <textarea
+              class="settings-textarea"
+              value={config.user_context}
+              onInput={(e) => {
+                const v = e.currentTarget.value.slice(0, USER_CONTEXT_MAX);
+                update({ user_context: v });
+              }}
+              maxLength={USER_CONTEXT_MAX}
+              rows={4}
+              placeholder="Context about you that the agent should consider when writing specs (role, expertise, preferences, ongoing projects)..."
+            />
+            <span class="settings-hint">
+              {config.user_context.length} / {USER_CONTEXT_MAX} characters
+            </span>
           </label>
 
           {/* ── Calendar section ── */}

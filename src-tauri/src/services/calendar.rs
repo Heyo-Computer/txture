@@ -216,27 +216,135 @@ pub async fn refresh_access_token(
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalendarEvent {
+    #[serde(default)]
+    pub id: String,
     pub summary: String,
     pub start_time: String,
     pub end_time: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub location: String,
+    #[serde(default)]
+    pub meeting_url: String,
+    #[serde(default)]
+    pub attendees: Vec<String>,
 }
 
-pub async fn fetch_todays_events(
+#[derive(Deserialize)]
+struct EventTime {
+    #[serde(alias = "dateTime", alias = "date")]
+    date_time: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct EntryPoint {
+    #[serde(default)]
+    uri: Option<String>,
+    #[serde(default, rename = "entryPointType")]
+    entry_point_type: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ConferenceData {
+    #[serde(default, rename = "entryPoints")]
+    entry_points: Option<Vec<EntryPoint>>,
+}
+
+#[derive(Deserialize)]
+struct Attendee {
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default, rename = "displayName")]
+    display_name: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GEvent {
+    #[serde(default)]
+    id: Option<String>,
+    summary: Option<String>,
+    start: Option<EventTime>,
+    end: Option<EventTime>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    location: Option<String>,
+    #[serde(default, rename = "hangoutLink")]
+    hangout_link: Option<String>,
+    #[serde(default, rename = "conferenceData")]
+    conference_data: Option<ConferenceData>,
+    #[serde(default)]
+    attendees: Option<Vec<Attendee>>,
+}
+
+/// Extract a meeting URL from a Google Calendar event in this priority order:
+/// 1. hangoutLink (Google Meet)
+/// 2. conferenceData.entryPoints with type "video" or any with a uri
+/// 3. zoom.us or meet.google.com URL found in description
+fn extract_meeting_url(g: &GEvent) -> String {
+    if let Some(link) = &g.hangout_link {
+        if !link.is_empty() {
+            return link.clone();
+        }
+    }
+    if let Some(cd) = &g.conference_data {
+        if let Some(entries) = &cd.entry_points {
+            // Prefer "video" type
+            for ep in entries {
+                if let (Some(uri), Some(t)) = (&ep.uri, &ep.entry_point_type) {
+                    if t == "video" && !uri.is_empty() {
+                        return uri.clone();
+                    }
+                }
+            }
+            // Fallback: any uri
+            for ep in entries {
+                if let Some(uri) = &ep.uri {
+                    if !uri.is_empty() {
+                        return uri.clone();
+                    }
+                }
+            }
+        }
+    }
+    if let Some(desc) = &g.description {
+        // Simple scan for known meeting domains
+        for line in desc.split_whitespace() {
+            let trimmed = line.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != ':' && c != '/' && c != '.' && c != '-' && c != '_' && c != '?' && c != '&' && c != '=');
+            if (trimmed.starts_with("https://") || trimmed.starts_with("http://"))
+                && (trimmed.contains("zoom.us") || trimmed.contains("meet.google.com"))
+            {
+                return trimmed.to_string();
+            }
+        }
+    }
+    String::new()
+}
+
+/// Fetch calendar events between today+start_offset and today+end_offset (inclusive day boundaries).
+pub async fn fetch_events_range(
     access_token: &str,
     calendar_id: &str,
+    start_offset_days: i64,
+    end_offset_days: i64,
 ) -> Result<Vec<CalendarEvent>, String> {
     let cal_id = if calendar_id.is_empty() { "primary" } else { calendar_id };
     let today = chrono::Local::now().date_naive();
-    let time_min = format!("{}T00:00:00Z", today);
-    let time_max = format!("{}T23:59:59Z", today);
+    let start_date = today + chrono::Duration::days(start_offset_days);
+    let end_date = today + chrono::Duration::days(end_offset_days);
+    let time_min = format!("{}T00:00:00Z", start_date);
+    let time_max = format!("{}T23:59:59Z", end_date);
 
     let url = format!(
-        "{}/calendars/{}/events?timeMin={}&timeMax={}&singleEvents=true&orderBy=startTime&maxResults=50",
+        "{}/calendars/{}/events?timeMin={}&timeMax={}&singleEvents=true&orderBy=startTime&maxResults=250",
         CALENDAR_API,
         urlencoding(cal_id),
         urlencoding(&time_min),
         urlencoding(&time_max),
     );
+
+    logging::info(&format!("calendar: fetching events {} to {}", time_min, time_max));
 
     let client = reqwest::Client::new();
     let resp = client
@@ -252,19 +360,6 @@ pub async fn fetch_todays_events(
     }
 
     #[derive(Deserialize)]
-    struct EventTime {
-        #[serde(alias = "dateTime", alias = "date")]
-        date_time: Option<String>,
-    }
-
-    #[derive(Deserialize)]
-    struct GEvent {
-        summary: Option<String>,
-        start: Option<EventTime>,
-        end: Option<EventTime>,
-    }
-
-    #[derive(Deserialize)]
     struct EventList {
         items: Option<Vec<GEvent>>,
     }
@@ -275,15 +370,40 @@ pub async fn fetch_todays_events(
     let events = list.items.unwrap_or_default()
         .into_iter()
         .filter_map(|e| {
+            let summary = e.summary.clone()?;
+            let start_time = e.start.as_ref().and_then(|s| s.date_time.clone()).unwrap_or_default();
+            let end_time = e.end.as_ref().and_then(|s| s.date_time.clone()).unwrap_or_default();
+            let id = e.id.clone().unwrap_or_default();
+            let description = e.description.clone().unwrap_or_default();
+            let location = e.location.clone().unwrap_or_default();
+            let meeting_url = extract_meeting_url(&e);
+            let attendees: Vec<String> = e.attendees.unwrap_or_default()
+                .into_iter()
+                .filter_map(|a| a.display_name.clone().or(a.email.clone()))
+                .collect();
+
             Some(CalendarEvent {
-                summary: e.summary?,
-                start_time: e.start?.date_time.unwrap_or_default(),
-                end_time: e.end?.date_time.unwrap_or_default(),
+                id,
+                summary,
+                start_time,
+                end_time,
+                description,
+                location,
+                meeting_url,
+                attendees,
             })
         })
         .collect();
 
     Ok(events)
+}
+
+/// Backward-compat wrapper for callers that only need today's events.
+pub async fn fetch_todays_events(
+    access_token: &str,
+    calendar_id: &str,
+) -> Result<Vec<CalendarEvent>, String> {
+    fetch_events_range(access_token, calendar_id, 0, 0).await
 }
 
 // ── Helpers ──

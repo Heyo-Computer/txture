@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "preact/hooks";
 import { days } from "../../state/store";
 import { useVoiceInput, voiceState, voiceError } from "../../hooks/useVoiceInput";
+import { describeImage } from "../../api/commands";
 import type { TodoItem } from "../../types";
 
 interface ChatInputProps {
@@ -8,8 +9,35 @@ interface ChatInputProps {
   disabled: boolean;
 }
 
+interface StagedImage {
+  base64: string;     // raw base64 (no data URL prefix)
+  mediaType: string;  // e.g. "image/png"
+  dataUrl: string;    // full data URL for preview
+  name: string;
+}
+
+function fileToBase64(file: File): Promise<{ base64: string; dataUrl: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(",")[1] ?? "";
+      resolve({ base64, dataUrl });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 interface MentionOption {
   todo: TodoItem;
+  date: string;
+}
+
+interface ActiveMention {
+  display: string; // e.g. "@Buy groceries"
+  title: string;
+  id: string;
   date: string;
 }
 
@@ -18,30 +46,139 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentions, setMentions] = useState<ActiveMention[]>([]);
+  const [image, setImage] = useState<StagedImage | null>(null);
+  const [imageError, setImageError] = useState<string>("");
+  const [describing, setDescribing] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
 
-  const handleTranscription = useCallback((transcribed: string) => {
-    const message = text.trim() ? text.trim() + " " + transcribed : transcribed;
-    if (message.trim() && !disabled) {
-      onSend(message.trim());
-      setText("");
-      if (inputRef.current) {
-        inputRef.current.style.height = "auto";
+  async function stageFile(file: File) {
+    setImageError("");
+    if (!file.type.startsWith("image/")) {
+      setImageError(`'${file.name}' is not an image.`);
+      return;
+    }
+    // Cap at ~10 MB to avoid huge payloads
+    if (file.size > 10 * 1024 * 1024) {
+      setImageError("Image is too large (max 10 MB).");
+      return;
+    }
+    try {
+      const { base64, dataUrl } = await fileToBase64(file);
+      setImage({ base64, dataUrl, mediaType: file.type, name: file.name });
+    } catch (e) {
+      setImageError(`Failed to read image: ${e}`);
+    }
+  }
+
+  function clearImage() {
+    setImage(null);
+    setImageError("");
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    if (e.dataTransfer && Array.from(e.dataTransfer.items ?? []).some((it) => it.kind === "file")) {
+      setDragOver(true);
+    }
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+  }
+
+  async function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) await stageFile(file);
+  }
+
+  async function handlePaste(e: ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          await stageFile(file);
+          return;
+        }
       }
     }
-  }, [text, disabled, onSend]);
+  }
+
+  async function handleFilePick(e: Event) {
+    const target = e.currentTarget as HTMLInputElement;
+    const file = target.files?.[0];
+    if (file) await stageFile(file);
+    target.value = "";
+  }
+
+  // Expand visible @title mentions into the agent-readable format on submit.
+  function expandMentions(visible: string): string {
+    let result = visible;
+    // Sort by display length descending so longer titles match before substrings
+    const sorted = [...mentions].sort((a, b) => b.display.length - a.display.length);
+    for (const m of sorted) {
+      const expanded = `@[${m.title}](id:${m.id}|date:${m.date})`;
+      result = result.split(m.display).join(expanded);
+    }
+    return result;
+  }
+
+  async function buildAndSend(visible: string) {
+    if (!visible.trim() || disabled) return;
+    let payload = expandMentions(visible.trim());
+
+    if (image) {
+      setDescribing(true);
+      try {
+        const description = await describeImage(image.base64, image.mediaType, visible.trim());
+        payload = `${payload}\n\n[From the attached image (${image.name}):\n${description}\n]`;
+      } catch (e) {
+        setImageError(`Failed to read image: ${e}`);
+        setDescribing(false);
+        return;
+      }
+      setDescribing(false);
+    }
+
+    onSend(payload);
+    setText("");
+    setMentions([]);
+    setImage(null);
+    setImageError("");
+    setShowMentions(false);
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
+  }
+
+  const handleTranscription = useCallback((transcribed: string) => {
+    const visible = text.trim() ? text.trim() + " " + transcribed : transcribed;
+    buildAndSend(visible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, mentions, image, disabled, onSend]);
 
   const { toggle: toggleVoice } = useVoiceInput(handleTranscription);
   const vState = voiceState.value;
   const vError = voiceError.value;
 
-  // Build flat list of all todos across loaded days
+  // Build flat list of all incomplete todos across loaded days
   function getMentionOptions(): MentionOption[] {
     const query = mentionQuery.toLowerCase();
     const options: MentionOption[] = [];
     for (const day of days.value) {
       for (const todo of day.todos) {
+        if (todo.completed) continue;
         if (!query || todo.title.toLowerCase().includes(query)) {
           options.push({ todo, date: day.date });
         }
@@ -61,17 +198,18 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
     const before = text.slice(0, atPos);
     const after = text.slice(cursorPos);
-    const mention = `@[${opt.todo.title}](id:${opt.todo.id}|date:${opt.date})`;
-    const newText = before + mention + " " + after;
+    const display = `@${opt.todo.title}`;
+    const newText = before + display + " " + after;
 
     setText(newText);
+    setMentions((prev) => [...prev, { display, title: opt.todo.title, id: opt.todo.id, date: opt.date }]);
     setShowMentions(false);
     setMentionQuery("");
 
     // Refocus and set cursor after the mention
     requestAnimationFrame(() => {
       if (inputRef.current) {
-        const pos = before.length + mention.length + 1;
+        const pos = before.length + display.length + 1;
         inputRef.current.focus();
         inputRef.current.setSelectionRange(pos, pos);
       }
@@ -79,15 +217,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   }
 
   function handleSubmit() {
-    const trimmed = text.trim();
-    if (trimmed && !disabled) {
-      onSend(trimmed);
-      setText("");
-      setShowMentions(false);
-      if (inputRef.current) {
-        inputRef.current.style.height = "auto";
-      }
-    }
+    buildAndSend(text);
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -127,6 +257,9 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     target.style.height = "auto";
     target.style.height = Math.min(target.scrollHeight, 120) + "px";
 
+    // Drop any mentions whose display text is no longer in the textarea
+    setMentions((prev) => prev.filter((m) => value.includes(m.display)));
+
     // Check for @ trigger
     const cursorPos = target.selectionStart ?? value.length;
     const beforeCursor = value.slice(0, cursorPos);
@@ -149,10 +282,53 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     }
   }, [mentionIndex, showMentions]);
 
+  // Close action menu when clicking outside
+  useEffect(() => {
+    if (!actionMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setActionMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [actionMenuOpen]);
+
+  function pickAttach() {
+    setActionMenuOpen(false);
+    fileInputRef.current?.click();
+  }
+
+  function pickVoice() {
+    setActionMenuOpen(false);
+    toggleVoice();
+  }
+
   return (
     <>
       {vError && <div class="voice-error">{vError}</div>}
-      <div class="chat-input-area">
+      {imageError && <div class="voice-error">{imageError}</div>}
+      {image && (
+        <div class="chat-image-preview">
+          <img src={image.dataUrl} alt={image.name} class="chat-image-thumb" />
+          <div class="chat-image-info">
+            <div class="chat-image-name">{image.name}</div>
+            <div class="chat-image-meta">{describing ? "Reading image..." : "Ready"}</div>
+          </div>
+          <button class="btn btn-sm btn-ghost" onClick={clearImage} title="Remove image">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
+      <div
+        class={`chat-input-area${dragOver ? " drag-over" : ""}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {showMentions && options.length > 0 && (
           <div class="mention-menu" ref={menuRef}>
             {options.map((opt, i) => (
@@ -170,43 +346,75 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
             ))}
           </div>
         )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          onChange={handleFilePick}
+        />
         <textarea
           ref={inputRef}
           class="chat-input"
           value={text}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder="Message the agent... (@ to mention a todo)"
-          disabled={disabled}
+          onPaste={handlePaste}
+          placeholder={image ? "Add a prompt for the image..." : "Message the agent... (@ to mention a todo)"}
+          disabled={disabled || describing}
           rows={1}
         />
-        <button
-          class={`btn btn-icon mic-btn${vState === "recording" ? " recording" : ""}${vState === "transcribing" ? " transcribing" : ""}`}
-          onClick={toggleVoice}
-          disabled={disabled || vState === "transcribing"}
-          title={
-            vState === "recording" ? "Stop recording (Ctrl+H)" :
-            vState === "transcribing" ? "Transcribing..." :
-            "Voice input (Ctrl+H)"
-          }
-        >
-          {vState === "transcribing" ? (
-            <span class="mic-spinner" />
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="22" />
+        <div class="chat-action-split" ref={actionMenuRef}>
+          <button
+            class={`btn btn-primary chat-action-main${vState === "recording" ? " recording" : ""}`}
+            onClick={vState === "recording" ? toggleVoice : handleSubmit}
+            disabled={
+              disabled || describing ||
+              (vState !== "recording" && vState !== "transcribing" && !text.trim() && !image)
+            }
+            title={
+              vState === "recording" ? "Stop recording (Ctrl+H)" :
+              vState === "transcribing" ? "Transcribing..." :
+              describing ? "Reading image..." :
+              "Send"
+            }
+          >
+            {vState === "recording" ? "Stop" :
+             vState === "transcribing" ? <span class="mic-spinner" /> :
+             describing ? "Reading..." :
+             "Send"}
+          </button>
+          <button
+            class="btn btn-primary chat-action-carrot"
+            onClick={() => setActionMenuOpen((o) => !o)}
+            disabled={disabled || describing || vState === "transcribing"}
+            title="More actions"
+            aria-label="More actions"
+          >
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 1l4 4 4-4" />
             </svg>
+          </button>
+          {actionMenuOpen && (
+            <div class="chat-action-menu">
+              <button class="chat-action-menu-item" onMouseDown={(e) => { e.preventDefault(); pickAttach(); }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+                <span>Attach image</span>
+              </button>
+              <button class="chat-action-menu-item" onMouseDown={(e) => { e.preventDefault(); pickVoice(); }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="22" />
+                </svg>
+                <span>Voice input</span>
+                <span class="chat-action-menu-shortcut">Ctrl+H</span>
+              </button>
+            </div>
           )}
-        </button>
-        <button
-          class="btn btn-primary"
-          onClick={handleSubmit}
-          disabled={disabled || !text.trim()}
-        >
-          Send
-        </button>
+        </div>
       </div>
     </>
   );

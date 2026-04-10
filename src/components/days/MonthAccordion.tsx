@@ -1,10 +1,6 @@
 import { useEffect } from "preact/hooks";
-import { monthDays, expandedTodoId, todayString } from "../../state/store";
-import { getMonthRange, saveTodo, updateTodo as updateTodoCmd, deleteTodo as deleteTodoCmd } from "../../api/commands";
-import { TodoItem } from "../todos/TodoItem";
-import { AddTodo } from "../todos/AddTodo";
-import type { TodoItem as TodoItemType } from "../../types";
-import { useSignal } from "@preact/signals";
+import { monthDays, expandedTodoId, todayString, viewedDate, activeTab } from "../../state/store";
+import { getMonthRange } from "../../api/commands";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -60,8 +56,6 @@ function isInRange(dateStr: string): boolean {
 }
 
 export function MonthAccordion() {
-  const selectedDate = useSignal<string | null>(null);
-
   useEffect(() => {
     getMonthRange().then((entries) => {
       monthDays.value = entries;
@@ -75,34 +69,11 @@ export function MonthAccordion() {
     return monthDays.value.find((d) => d.date === date);
   }
 
-  async function reload() {
-    const entries = await getMonthRange();
-    monthDays.value = entries;
+  function openDay(dateStr: string) {
+    viewedDate.value = dateStr;
+    activeTab.value = "day";
+    expandedTodoId.value = null;
   }
-
-  async function handleAdd(date: string, title: string) {
-    await saveTodo(date, title);
-    await reload();
-  }
-
-  async function handleToggle(date: string, todo: TodoItemType) {
-    await updateTodoCmd(date, { ...todo, completed: !todo.completed });
-    await reload();
-  }
-
-  async function handleDelete(date: string, todoId: string) {
-    await deleteTodoCmd(date, todoId);
-    await reload();
-  }
-
-  async function handleUpdate(date: string, todo: TodoItemType) {
-    await updateTodoCmd(date, todo);
-    await reload();
-  }
-
-  const selected = selectedDate.value;
-  const selectedEntry = selected ? entryByDate(selected) : undefined;
-  const selectedTodos = selectedEntry?.todos ?? [];
 
   return (
     <div class="month-calendar">
@@ -120,20 +91,14 @@ export function MonthAccordion() {
                 const inRange = isInRange(dateStr);
                 const entry = entryByDate(dateStr);
                 const count = entry?.todos?.length ?? 0;
-                const isSelected = dateStr === selected;
                 const isToday = dateStr === today;
                 const dayNum = new Date(dateStr + "T00:00:00").getDate();
 
                 return (
                   <button
                     key={dateStr}
-                    class={`cal-cell${inRange ? "" : " cal-out"}${isSelected ? " cal-selected" : ""}${isToday ? " cal-today" : ""}`}
-                    onClick={() => {
-                      if (inRange) {
-                        selectedDate.value = isSelected ? null : dateStr;
-                        expandedTodoId.value = null;
-                      }
-                    }}
+                    class={`cal-cell${inRange ? "" : " cal-out"}${isToday ? " cal-today" : ""}`}
+                    onClick={() => { if (inRange) openDay(dateStr); }}
                     disabled={!inRange}
                   >
                     <span class="cal-day-num">{dayNum}</span>
@@ -145,33 +110,6 @@ export function MonthAccordion() {
           </div>
         );
       })}
-
-      {selected && (
-        <div class="cal-detail">
-          <div class="cal-detail-header">
-            {new Date(selected + "T00:00:00").toLocaleDateString("en-US", {
-              weekday: "long", month: "short", day: "numeric",
-            })}
-          </div>
-          {selectedTodos.length > 0 ? (
-            <div class="todo-list">
-              {selectedTodos.map((todo) => (
-                <TodoItem
-                  key={todo.id}
-                  todo={todo}
-                  date={selected}
-                  onToggle={() => handleToggle(selected, todo)}
-                  onDelete={() => handleDelete(selected, todo.id)}
-                  onUpdate={(t) => handleUpdate(selected, t)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div class="accordion-empty">No todos yet</div>
-          )}
-          <AddTodo onAdd={(title) => handleAdd(selected, title)} />
-        </div>
-      )}
     </div>
   );
 }

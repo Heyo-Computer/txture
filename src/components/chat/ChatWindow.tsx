@@ -1,5 +1,5 @@
-import { chatMessages, isAgentLoading, agentStatus, statusPopoverOpen, days } from "../../state/store";
-import { sendMessage, getDaysRange } from "../../api/commands";
+import { chatMessages, isAgentLoading, agentStatus, statusPopoverOpen, days, artifacts } from "../../state/store";
+import { sendMessage, getDaysRange, listArtifacts } from "../../api/commands";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 
@@ -22,8 +22,9 @@ export function ChatWindow() {
     try {
       const response = await sendMessage(text);
       chatMessages.value = [...chatMessages.value, response];
-      // Refresh days in case the agent modified todos
+      // Refresh days and artifacts in case the agent modified them
       getDaysRange().then((entries) => { days.value = entries; }).catch(() => {});
+      listArtifacts().then((items) => { artifacts.value = items; }).catch(() => {});
     } catch (err) {
       const errorMsg = {
         id: localId(),

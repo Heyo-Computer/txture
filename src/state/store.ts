@@ -1,11 +1,14 @@
 import { signal } from "@preact/signals";
 import type { DayEntry, TodoItem, AgentMessage, Artifact, ViewTab, AgentStatus, AgentMode } from "../types";
 
-// Navigation — "week", "month", and "artifacts" are tabs above the chat
-export const activeTab = signal<ViewTab>("week");
+// Navigation — tabs above the chat
+export const activeTab = signal<ViewTab>("day");
 
 // Accordion — which day is expanded (date string or null)
 export const expandedDate = signal<string>(todayString());
+
+// Single date currently focused in the Day tab
+export const viewedDate = signal<string>(todayString());
 
 // Days & Todos
 export const days = signal<DayEntry[]>([]);

@@ -158,6 +158,10 @@ export async function speakText(text: string): Promise<string> {
   return invoke("speak_text", { text });
 }
 
+export async function describeImage(imageData: string, mediaType: string, prompt: string): Promise<string> {
+  return invoke("describe_image", { imageData, mediaType, prompt });
+}
+
 // Deploy commands
 export async function deployAgent(): Promise<string> {
   return invoke("deploy_agent");

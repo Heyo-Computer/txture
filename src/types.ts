@@ -35,7 +35,7 @@ export interface Theme {
   };
 }
 
-export type ViewTab = "week" | "month" | "artifacts";
+export type ViewTab = "day" | "week" | "month" | "artifacts";
 
 export type AgentStatus = "disconnected" | "starting" | "running" | "error";
 
@@ -46,6 +46,8 @@ export interface DeploymentInfo {
   sandbox_id: string | null;
   public_url: string | null;
 }
+
+export type SpecVerbosity = "terse" | "normal" | "detailed";
 
 export interface AgentConfig {
   api_key: string;
@@ -59,6 +61,8 @@ export interface AgentConfig {
   deploy_size_class: string;
   deploy_image: string;
   speech_api_key: string;
+  spec_verbosity: SpecVerbosity;
+  user_context: string;
 }
 
 export interface CalendarConfig {

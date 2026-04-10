@@ -3,6 +3,7 @@ import type { Artifact } from "../../types";
 interface ArtifactItemProps {
   artifact: Artifact;
   onDelete: () => void;
+  onView: () => void;
 }
 
 function formatSize(bytes: number): string {
@@ -30,15 +31,19 @@ function getFileIcon(name: string): string {
   return icons[ext] ?? "\u{1F4C1}";
 }
 
-export function ArtifactItem({ artifact, onDelete }: ArtifactItemProps) {
+export function ArtifactItem({ artifact, onDelete, onView }: ArtifactItemProps) {
   return (
-    <div class="artifact-item">
+    <div class="artifact-item" onClick={onView} style={{ cursor: "pointer" }}>
       <div class="artifact-icon">{getFileIcon(artifact.name)}</div>
       <div class="artifact-info">
         <div class="artifact-name">{artifact.name}</div>
         <div class="artifact-meta">{formatSize(artifact.size)}</div>
       </div>
-      <button class="btn btn-sm btn-ghost" onClick={onDelete} title="Delete">
+      <button
+        class="btn btn-sm btn-ghost"
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        title="Delete"
+      >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6" />
           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />

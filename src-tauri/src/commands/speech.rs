@@ -38,6 +38,34 @@ pub async fn speak_text(
     crate::services::speech::text_to_speech(&config.speech_api_key, &text).await
 }
 
+/// Describe an image using Mistral's multimodal vision model. Used when the user
+/// drops an image into the chat. Returns extracted/described text that the agent can act on.
+#[tauri::command]
+pub async fn describe_image(
+    image_data: String,
+    media_type: String,
+    prompt: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let config = super::config::AgentConfig::default_from_disk(&state.config_dir);
+
+    if config.speech_api_key.is_empty() {
+        return Err("No Mistral API key configured. Add it under Speech in Settings.".to_string());
+    }
+
+    logging::info(&format!(
+        "describe_image: media_type={}, image_len={}, prompt_len={}",
+        media_type, image_data.len(), prompt.len()
+    ));
+
+    crate::services::vision::describe_image(
+        &config.speech_api_key,
+        &image_data,
+        &media_type,
+        &prompt,
+    ).await
+}
+
 /// Transcribe a WAV file from disk (used by the native mic recorder plugin).
 #[tauri::command]
 pub async fn transcribe_file(

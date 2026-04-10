@@ -95,6 +95,15 @@ pub fn update_todo(storage_root: &Path, date: &str, updated: TodoItem) -> Result
     Ok(entry)
 }
 
+/// Save the cached calendar events to {data_dir}/calendar/events.json so the agent can read them.
+pub fn save_calendar_events(data_dir: &Path, events: &[crate::services::calendar::CalendarEvent]) -> Result<(), String> {
+    let dir = data_dir.join("calendar");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create calendar dir: {}", e))?;
+    let path = dir.join("events.json");
+    let content = serde_json::to_string_pretty(events).map_err(|e| e.to_string())?;
+    std::fs::write(&path, content).map_err(|e| format!("Failed to write calendar cache: {}", e))
+}
+
 pub fn delete_todo(storage_root: &Path, date: &str, todo_id: &str) -> Result<DayEntry, String> {
     let mut entry = load_day(storage_root, date);
     entry.todos.retain(|t| t.id != todo_id);
