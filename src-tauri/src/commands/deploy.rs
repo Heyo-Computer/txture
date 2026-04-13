@@ -52,10 +52,7 @@ pub async fn deploy_agent(
 
     // Step 1: Archive agent code
     progress(&app, "Archiving agent code...");
-    let agent_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../agent");
-    if !agent_src.exists() {
-        return Err(format!("Agent source not found at {}", agent_src.display()));
-    }
+    let agent_src = super::agent::resolve_agent_source(&app)?;
     let agent_path = agent_src.to_string_lossy().to_string();
     let archive_name = format!("todo-agent-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
     let archive_output = heyvm::archive_dir(&agent_path, &archive_name, "/data", &cloud_url)

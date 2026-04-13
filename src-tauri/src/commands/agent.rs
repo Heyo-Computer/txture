@@ -91,7 +91,8 @@ pub async fn setup_agent(
 
     // Step 4: Deploy agent code
     progress(&app, "Deploying agent code...");
-    if let Err(e) = deploy_agent_code(&data_dir) {
+    let agent_src = resolve_agent_source(&app)?;
+    if let Err(e) = deploy_agent_code(&data_dir, &agent_src) {
         let msg = format!("setup_agent: deploy failed: {}", e);
         logging::error(&msg);
         return Err(msg);
@@ -446,9 +447,27 @@ fn tail(s: &str, max_chars: usize) -> &str {
     }
 }
 
+/// Resolve the agent source directory: bundled resources first, dev fallback second.
+pub fn resolve_agent_source(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    // Production: agent is bundled as a Tauri resource under agent-bundle/
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let bundled = resource_dir.join("agent-bundle");
+        if bundled.join("dist/index.js").exists() {
+            logging::info(&format!("resolve_agent_source: using bundled resource at {}", bundled.display()));
+            return Ok(bundled);
+        }
+    }
+    // Development: source tree is available next to src-tauri/
+    let dev_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../agent");
+    if dev_path.exists() {
+        logging::info(&format!("resolve_agent_source: using dev path at {}", dev_path.display()));
+        return Ok(dev_path);
+    }
+    Err("Agent source not found. In production, ensure agent-bundle/ is included in Tauri resources. In dev, ensure agent/ exists at the project root.".to_string())
+}
+
 /// Copy the agent/ directory into the data dir so it's accessible inside the VM at /data/agent
-fn deploy_agent_code(data_dir: &str) -> Result<(), String> {
-    let agent_src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../agent");
+fn deploy_agent_code(data_dir: &str, agent_src: &std::path::Path) -> Result<(), String> {
     let agent_dst = std::path::Path::new(data_dir).join("agent");
 
     logging::info(&format!("deploy_agent_code: src={}, dst={}", agent_src.display(), agent_dst.display()));

@@ -16,6 +16,7 @@ bun.lock
 # Agent service build output
 agent/dist
 agent/node_modules
+src-tauri/agent-bundle
 
 # Editor directories and files
 .vscode/*
