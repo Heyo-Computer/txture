@@ -1,62 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "preact/hooks";
-import { loadSpec, saveSpec, speakText } from "../../api/commands";
+import { useState, useEffect } from "preact/hooks";
+import { loadSpec, saveSpec } from "../../api/commands";
 import { MarkdownRenderer } from "../markdown/MarkdownRenderer";
+import { useReadAloud } from "../../hooks/useReadAloud";
 import type { TodoItem } from "../../types";
-
-function stripMarkdown(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, "")       // code blocks
-    .replace(/`[^`]+`/g, "")              // inline code
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "") // images
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // links → text
-    .replace(/#{1,6}\s+/g, "")            // headings
-    .replace(/[*_~]{1,3}/g, "")           // bold/italic/strike
-    .replace(/^[-*+]\s+/gm, "")           // list markers
-    .replace(/^\d+\.\s+/gm, "")           // ordered lists
-    .replace(/^>\s+/gm, "")               // blockquotes
-    .replace(/\|/g, " ")                  // table pipes
-    .replace(/---+/g, "")                 // horizontal rules
-    .replace(/\n{2,}/g, ". ")             // paragraph breaks → pause
-    .replace(/\n/g, " ")
-    .trim();
-}
-
-function useReadAloud() {
-  const [speaking, setSpeaking] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const stop = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    setSpeaking(false);
-  }, []);
-
-  const toggle = useCallback(async (text: string) => {
-    if (speaking) {
-      stop();
-      return;
-    }
-    const plain = stripMarkdown(text);
-    if (!plain) return;
-
-    setSpeaking(true);
-    try {
-      const base64Audio = await speakText(plain);
-      const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
-      audioRef.current = audio;
-      audio.onended = () => { audioRef.current = null; setSpeaking(false); };
-      audio.onerror = () => { audioRef.current = null; setSpeaking(false); };
-      await audio.play();
-    } catch (e) {
-      console.error("TTS failed:", e);
-      setSpeaking(false);
-    }
-  }, [speaking, stop]);
-
-  return { speaking, toggle, stop };
-}
 
 interface TodoSpecProps {
   todo: TodoItem;

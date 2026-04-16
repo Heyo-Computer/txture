@@ -3,7 +3,19 @@ import { viewedDate, todayString, formatDate, expandedTodoId } from "../../state
 import { loadDay, saveTodo, updateTodo as updateTodoCmd, deleteTodo as deleteTodoCmd } from "../../api/commands";
 import { TodoItem } from "../todos/TodoItem";
 import { AddTodo } from "../todos/AddTodo";
+import { useReadAloud } from "../../hooks/useReadAloud";
 import type { DayEntry, TodoItem as TodoItemType } from "../../types";
+
+function buildSummary(weekday: string, todos: TodoItemType[]): string {
+  if (todos.length === 0) return `No todos for ${weekday}.`;
+  const pending = todos.filter((t) => !t.completed);
+  const done = todos.length - pending.length;
+  const titles = todos.map((t) => t.title.trim()).filter(Boolean);
+  const list = titles.join(". ");
+  const header = `${todos.length} ${todos.length === 1 ? "todo" : "todos"} for ${weekday}`;
+  const trailer = done > 0 ? ` ${done} completed.` : "";
+  return `${header}: ${list}.${trailer}`;
+}
 
 function shiftDate(date: string, days: number): string {
   const d = new Date(date + "T00:00:00");
@@ -64,6 +76,10 @@ export function DayPanel() {
   const isToday = date === today;
   const formatted = formatDate(date);
   const todos = entry?.todos ?? [];
+  const { speaking, toggle: toggleSpeak, stop: stopSpeak } = useReadAloud();
+
+  useEffect(() => () => stopSpeak(), []);
+  useEffect(() => { stopSpeak(); }, [date]);
 
   return (
     <div class="day-panel">
@@ -74,6 +90,14 @@ export function DayPanel() {
           <div class="day-panel-date">{formatted.display}</div>
         </div>
         <button class="day-nav-btn" onClick={goNext} title="Next day">&#x203A;</button>
+        <button
+          class={`day-nav-btn day-summary-btn${speaking ? " speaking" : ""}`}
+          onClick={() => toggleSpeak(buildSummary(formatted.weekday, todos))}
+          title={speaking ? "Stop reading" : "Read summary"}
+          disabled={loading}
+        >
+          {speaking ? "\u25A0" : "\u25B6"}
+        </button>
         {!isToday && (
           <button class="btn btn-sm btn-ghost day-today-btn" onClick={goToday}>Today</button>
         )}

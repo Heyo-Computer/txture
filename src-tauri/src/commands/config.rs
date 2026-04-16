@@ -21,6 +21,9 @@ fn default_image() -> String {
 fn default_spec_verbosity() -> String {
     "normal".to_string()
 }
+fn default_theme_name() -> String {
+    "dark".to_string()
+}
 
 const USER_CONTEXT_MAX: usize = 1000;
 
@@ -48,6 +51,8 @@ pub struct AgentConfig {
     pub spec_verbosity: String,
     #[serde(default)]
     pub user_context: String,
+    #[serde(default = "default_theme_name")]
+    pub theme_name: String,
 }
 
 impl Default for AgentConfig {
@@ -61,7 +66,7 @@ impl Default for AgentConfig {
         Self {
             api_key: String::new(),
             model: "claude-sonnet-4-6".to_string(),
-            vm_name: "todo-agent".to_string(),
+            vm_name: "txture-agent".to_string(),
             vm_backend: backend.to_string(),
             data_dir: default_data_dir(),
             heyo_api_key: String::new(),
@@ -72,6 +77,7 @@ impl Default for AgentConfig {
             speech_api_key: String::new(),
             spec_verbosity: default_spec_verbosity(),
             user_context: String::new(),
+            theme_name: default_theme_name(),
         }
     }
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "todo",
+  "productName": "txture",
   "version": "0.1.0",
-  "identifier": "com.heyo.todo",
+  "identifier": "com.heyo.txture",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "ToDo",
+        "title": "txture",
         "width": 420,
         "height": 1152,
         "minWidth": 340,

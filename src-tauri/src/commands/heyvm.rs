@@ -11,7 +11,7 @@ fn vm_name_from_config(state: &AppState) -> String {
             }
         }
     }
-    "todo-agent".to_string()
+    "txture-agent".to_string()
 }
 
 fn vm_backend_from_config(state: &AppState) -> String {

@@ -6,6 +6,7 @@ import {
   getCalendarStatus, connectGoogleCalendar,
   disconnectGoogleCalendar, syncCalendarToTodos,
 } from "../../api/commands";
+import { themeList, setTheme } from "../../theme/ThemeProvider";
 import type { AgentConfig, CalendarConfig, CalendarStatus } from "../../types";
 
 const MODELS = [
@@ -43,7 +44,7 @@ const IMAGES = [
 const DEFAULT_CONFIG: AgentConfig = {
   api_key: "",
   model: "claude-sonnet-4-6-20250514",
-  vm_name: "todo-agent",
+  vm_name: "txture-agent",
   vm_backend: "libvirt",
   data_dir: "~/.todo",
   heyo_api_key: "",
@@ -54,6 +55,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   speech_api_key: "",
   spec_verbosity: "normal",
   user_context: "",
+  theme_name: "dark",
 };
 
 const VERBOSITIES: { value: "terse" | "normal" | "detailed"; label: string; hint: string }[] = [
@@ -84,6 +86,7 @@ export function SettingsPanel() {
     getAgentConfig().then((c) => {
       setConfig(c);
       if (c.vm_name) agentName.value = c.vm_name;
+      if (c.theme_name) setTheme(c.theme_name);
     }).catch(() => {});
     getCalendarConfig().then(setCalConfig).catch(() => {});
     getCalendarStatus().then(setCalStatus).catch(() => {});
@@ -95,7 +98,7 @@ export function SettingsPanel() {
     try {
       await setAgentConfig(config);
       await setCalendarConfig(calConfig);
-      agentName.value = config.vm_name || "ToDo";
+      agentName.value = config.vm_name || "txture";
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
@@ -158,6 +161,43 @@ export function SettingsPanel() {
         </div>
 
         <div class="settings-body">
+          {/* ── Appearance section ── */}
+          <div class="settings-section-label">Appearance</div>
+
+          <div class="settings-field">
+            <span class="settings-label">Theme</span>
+            <div class="theme-picker">
+              {themeList.map((t) => (
+                <button
+                  key={t.name}
+                  type="button"
+                  class={`theme-swatch${config.theme_name === t.name ? " active" : ""}`}
+                  onClick={() => {
+                    update({ theme_name: t.name });
+                    setTheme(t.name);
+                  }}
+                  title={t.label}
+                >
+                  <span
+                    class={`theme-swatch-preview theme-preview-${t.background.type}`}
+                    style={{
+                      background: t.colors["bg-primary"].startsWith("rgba")
+                        ? t.colors["bg-secondary"]
+                        : t.colors["bg-primary"],
+                      borderColor: t.colors["border"],
+                    }}
+                  >
+                    <span class="theme-swatch-accent" style={{ background: t.colors["accent"] }} />
+                  </span>
+                  <span class="theme-swatch-label">{t.label}</span>
+                </button>
+              ))}
+            </div>
+            <span class="settings-hint">Aurora, Waves, and Dots use animated GPU shaders.</span>
+          </div>
+
+          <div class="settings-divider" />
+
           {/* ── Agent section ── */}
           <div class="settings-section-label">Agent</div>
 
@@ -192,7 +232,7 @@ export function SettingsPanel() {
               class="settings-input"
               value={config.vm_name}
               onInput={(e) => update({ vm_name: e.currentTarget.value })}
-              placeholder="todo-agent"
+              placeholder="txture-agent"
             />
           </label>
 

@@ -2,7 +2,8 @@ import { createContext } from "preact";
 import { useContext, useEffect } from "preact/hooks";
 import { signal, computed } from "@preact/signals";
 import type { Theme } from "../types";
-import { themes, darkTheme } from "./themes";
+import { themes, darkTheme, themeList } from "./themes";
+import { ShaderBackground } from "./ShaderBackground";
 
 const themeName = signal<string>("dark");
 
@@ -11,8 +12,14 @@ export const currentTheme = computed<Theme>(
 );
 
 export function setTheme(name: string) {
-  themeName.value = name;
+  if (themes[name]) themeName.value = name;
 }
+
+export function getThemeName(): string {
+  return themeName.value;
+}
+
+export { themeList };
 
 const ThemeContext = createContext<{
   theme: Theme;
@@ -33,6 +40,7 @@ function applyTheme(theme: Theme) {
   }
   root.style.setProperty("--font-body", theme.fonts.body);
   root.style.setProperty("--font-mono", theme.fonts.mono);
+  root.dataset.themeBg = theme.background.type;
 }
 
 export function ThemeProvider({ children }: { children: preact.ComponentChildren }) {
@@ -44,6 +52,7 @@ export function ThemeProvider({ children }: { children: preact.ComponentChildren
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
+      <ShaderBackground theme={theme} />
       {children}
     </ThemeContext.Provider>
   );

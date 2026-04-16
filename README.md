@@ -1,4 +1,4 @@
-# ToDo
+# txture
 
 A desktop task manager with an AI agent that runs in a sandboxed VM. Built with Tauri v2, Preact, and Rust.
 
@@ -31,7 +31,7 @@ bun run tauri dev
 On first launch, open **Settings** and configure:
 
 1. **Anthropic API Key** -- required for the agent to work
-2. **VM Name** -- name for your sandbox (default: `todo-agent`)
+2. **VM Name** -- name for your sandbox (default: `txture-agent`)
 3. **VM Backend** -- `libvirt` on Linux, `apple_vf` on macOS
 
 Then click **Set up** in the chat panel to create the sandbox, install the agent, and start it.
@@ -83,19 +83,19 @@ When the agent is running, all storage operations route through it via JSON-RPC.
 
 ## Agent Sandbox Setup
 
-The app creates a heyvm sandbox with the agent image baked in (Node.js 18 + npm pre-installed). The image is at `~/.heyo/images/todo-agent-base.qcow2`.
+The app creates a heyvm sandbox with the agent image baked in (Node.js 18 + npm pre-installed). The image is at `~/.heyo/images/txture-agent-base.qcow2`.
 
 To build the base image from scratch:
 
 ```bash
 # Create a sandbox, install Node.js, clean up
-heyvm create --name todo-agent --backend-type libvirt --type shell
-heyvm exec todo-agent -- sh -c "sudo apt-get update -qq && sudo apt-get install -y nodejs npm"
-heyvm exec todo-agent -- sh -c "sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/*"
+heyvm create --name txture-agent --backend-type libvirt --type shell
+heyvm exec txture-agent -- sh -c "sudo apt-get update -qq && sudo apt-get install -y nodejs npm"
+heyvm exec txture-agent -- sh -c "sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/*"
 
 # Snapshot it as a reusable image
-heyvm stop todo-agent
-heyvm snapshot --name todo-agent-base todo-agent
+heyvm stop txture-agent
+heyvm snapshot --name txture-agent-base txture-agent
 ```
 
 ## Google Calendar Integration

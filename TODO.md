@@ -1,4 +1,4 @@
-# ToDo
+# txture
 A desktop agent for organizing and doing. Built in Tauri. 
 
 Requirements:

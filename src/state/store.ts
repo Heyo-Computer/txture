@@ -38,7 +38,7 @@ export const currentThemeName = signal<string>("dark");
 export const settingsOpen = signal<boolean>(false);
 
 // Agent name (mirrors vm_name from config, shown as app title)
-export const agentName = signal<string>("ToDo");
+export const agentName = signal<string>("txture");
 
 // Status popover
 export const statusPopoverOpen = signal<boolean>(false);

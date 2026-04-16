@@ -20,12 +20,29 @@ button svg, a svg {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Shader-backed themes: keep html/body transparent so the shader canvas shows through. */
+html:not([data-theme-bg="solid"]),
+html:not([data-theme-bg="solid"]) body {
+  background-color: transparent;
+}
+
 body {
   overflow: hidden;
   height: 100vh;
   width: 100vw;
   position: relative;
 }
+
+/* Animated shader layer rendered behind all app content. */
+.shader-bg {
+  will-change: transform;
+}
+.shader-bg > * {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+#root { position: relative; z-index: 1; }
 
 /* ── Paper texture overlay ── */
 body::before {
@@ -51,6 +68,8 @@ body::before {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Header ── */
@@ -760,6 +779,20 @@ body::before {
 
 .day-today-btn {
   flex-shrink: 0;
+}
+
+.day-summary-btn {
+  font-size: 11px;
+}
+
+.day-summary-btn.speaking {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.day-summary-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .day-panel-body {
@@ -1854,4 +1887,84 @@ body::before {
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;
+}
+
+/* ── Theme picker ── */
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  color: var(--color-text-secondary);
+  font: inherit;
+}
+
+.theme-swatch:hover {
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.theme-swatch.active {
+  border-color: var(--color-accent);
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.theme-swatch-preview {
+  width: 52px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 2px var(--color-shadow);
+}
+
+.theme-swatch-accent {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.theme-preview-meshGradient {
+  background: linear-gradient(135deg, #1a2b3c 0%, #2d6a7f 35%, #8ae6c7 65%, #5b3a8a 100%) !important;
+}
+
+.theme-preview-waves {
+  background:
+    repeating-linear-gradient(
+      25deg,
+      #0c1220 0 6px,
+      #2a4a7a 6px 10px
+    ) !important;
+}
+
+.theme-preview-dotOrbit {
+  background:
+    radial-gradient(circle at 25% 35%, #ff8a5a 0 3px, transparent 4px),
+    radial-gradient(circle at 70% 30%, #ffd27a 0 2px, transparent 3px),
+    radial-gradient(circle at 40% 70%, #c7a3ff 0 3px, transparent 4px),
+    radial-gradient(circle at 80% 75%, #7fd4ff 0 2px, transparent 3px),
+    #100d14 !important;
+}
+
+.theme-swatch-label {
+  font-size: 11px;
+  font-weight: 500;
 }

@@ -26,13 +26,46 @@ export interface Artifact {
   created_at: string;
 }
 
+export type ShaderBackground =
+  | { type: "solid" }
+  | {
+      type: "meshGradient";
+      colors: string[];
+      distortion?: number;
+      swirl?: number;
+      speed?: number;
+      grainOverlay?: number;
+    }
+  | {
+      type: "waves";
+      colorFront: string;
+      colorBack: string;
+      frequency?: number;
+      amplitude?: number;
+      spacing?: number;
+      softness?: number;
+      rotation?: number;
+    }
+  | {
+      type: "dotOrbit";
+      colorBack: string;
+      colors: string[];
+      size?: number;
+      sizeRange?: number;
+      spreading?: number;
+      speed?: number;
+    };
+
 export interface Theme {
   name: string;
+  label: string;
   colors: Record<string, string>;
   fonts: {
     body: string;
     mono: string;
   };
+  background: ShaderBackground;
+  backgroundOpacity?: number;
 }
 
 export type ViewTab = "day" | "week" | "month" | "artifacts";
@@ -63,6 +96,7 @@ export interface AgentConfig {
   speech_api_key: string;
   spec_verbosity: SpecVerbosity;
   user_context: string;
+  theme_name: string;
 }
 
 export interface CalendarConfig {

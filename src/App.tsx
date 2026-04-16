@@ -1,4 +1,4 @@
-import { ThemeProvider } from "./theme/ThemeProvider";
+import { ThemeProvider, themeList, setTheme } from "./theme/ThemeProvider";
 import { useTheme } from "./theme/ThemeProvider";
 import { useRef, useCallback, useEffect } from "preact/hooks";
 import { activeTab, agentStatus, agentMode, settingsOpen, agentName, statusPopoverOpen, days } from "./state/store";
@@ -10,7 +10,7 @@ import { ChatWindow } from "./components/chat/ChatWindow";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { StatusPopover } from "./components/status/StatusPopover";
 import { setupEventListeners } from "./api/events";
-import { getAgentStatus, getDaysRange } from "./api/commands";
+import { getAgentStatus, getAgentConfig, setAgentConfig, getDaysRange } from "./api/commands";
 import type { ViewTab, AgentStatus } from "./types";
 import { signal } from "@preact/signals";
 
@@ -25,12 +25,16 @@ const tabs: { id: ViewTab; label: string }[] = [
 const contentHeight = signal<number | null>(null);
 
 function AppShell() {
-  const { theme, setTheme } = useTheme();
+  const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
   useEffect(() => {
     setupEventListeners();
+    // Apply persisted theme at startup, before any settings UI opens.
+    getAgentConfig().then((c) => {
+      if (c.theme_name) setTheme(c.theme_name);
+    }).catch(() => {});
     // Sync initial agent status (auto-start may have finished before listener was ready)
     getAgentStatus().then((s) => {
       agentStatus.value = s as AgentStatus;
@@ -117,10 +121,20 @@ function AppShell() {
           </button>
           <button
             class="header-icon-btn"
-            onClick={() => setTheme(theme.name === "dark" ? "light" : "dark")}
-            title="Toggle theme"
+            onClick={async () => {
+              const idx = themeList.findIndex((t) => t.name === theme.name);
+              const next = themeList[(idx + 1) % themeList.length];
+              setTheme(next.name);
+              try {
+                const c = await getAgentConfig();
+                await setAgentConfig({ ...c, theme_name: next.name });
+              } catch {}
+            }}
+            title={`Theme: ${theme.label} (click to cycle)`}
           >
-            {theme.name === "dark" ? "\u2600" : "\u263E"}
+            {theme.background.type === "solid"
+              ? (theme.name === "dark" ? "\u2600" : "\u263E")
+              : "\u273F"}
           </button>
         </div>
       </div>

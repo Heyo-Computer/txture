@@ -6,7 +6,7 @@ use crate::state::AppState;
 use crate::logging;
 
 const AGENT_PORT: u16 = 8080;
-const AGENT_IMAGE_NAME: &str = "todo-agent-base.qcow2";
+const AGENT_IMAGE_NAME: &str = "txture-agent-base.qcow2";
 
 fn agent_image_path() -> String {
     let home = dirs::home_dir().expect("Could not determine home directory");
@@ -30,7 +30,7 @@ pub async fn setup_agent(
     logging::info("=== setup_agent: starting ===");
 
     let config = read_config(&state);
-    let vm_name = if config.vm_name.is_empty() { "todo-agent".to_string() } else { config.vm_name.clone() };
+    let vm_name = if config.vm_name.is_empty() { "txture-agent".to_string() } else { config.vm_name.clone() };
     let backend = if config.vm_backend.is_empty() {
         if cfg!(target_os = "macos") { "apple_vf" } else { "libvirt" }.to_string()
     } else {
@@ -184,7 +184,7 @@ pub async fn start_agent(
         let lock = state.vm_name.lock().unwrap();
         lock.clone()
     }.unwrap_or_else(|| {
-        if config.vm_name.is_empty() { "todo-agent".to_string() } else { config.vm_name.clone() }
+        if config.vm_name.is_empty() { "txture-agent".to_string() } else { config.vm_name.clone() }
     });
 
     let mut env_parts = format!("PORT={}", AGENT_PORT);
@@ -375,7 +375,7 @@ pub async fn auto_start_agent(app: AppHandle) {
         return;
     }
 
-    let vm_name = if config.vm_name.is_empty() { "todo-agent".to_string() } else { config.vm_name.clone() };
+    let vm_name = if config.vm_name.is_empty() { "txture-agent".to_string() } else { config.vm_name.clone() };
 
     if !heyvm::sandbox_exists(&vm_name) {
         logging::info(&format!("auto_start: sandbox '{}' does not exist, skipping", vm_name));
